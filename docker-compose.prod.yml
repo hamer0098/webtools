@@ -1,0 +1,43 @@
+# 生产部署用：webtools + Caddy(自动 HTTPS) 反向代理。
+# 启动：docker compose -f docker-compose.prod.yml up -d --build
+#
+# 与开发用 docker-compose.yml 的区别：
+#   - webtools 不再把 3000 映射到宿主机，只在内部 docker 网络暴露
+#   - 新增 Caddy，监听 80/443，自动签发并续期 Let's Encrypt 证书
+services:
+  webtools:
+    build: .
+    image: webtools:latest
+    container_name: webtools
+    restart: unless-stopped
+    expose:
+      - "3000"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env.production
+    networks:
+      - web
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - web
+    depends_on:
+      - webtools
+
+networks:
+  web:
+
+volumes:
+  caddy_data:
+  caddy_config:

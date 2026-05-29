@@ -1,0 +1,17 @@
+# Wrangler 配置模板。把它复制到 cf-worker/ 目录下用 `wrangler deploy` 部署。
+#
+# 敏感变量（WEBTOOLS_URL, WEBHOOK_SECRET）不在这里写：
+#   - dev：在 .dev.vars 文件里写
+#   - prod：在 CF Dashboard → Worker → Settings → Variables 里配
+#
+# 也可以完全跳过 wrangler，直接在 CF Dashboard 里粘 tempmail-worker.js 的代码。
+# 用 dashboard 时需要去 Worker → Settings → Bindings → Add binding → Text 添加
+# WEBTOOLS_URL 和 WEBHOOK_SECRET。
+
+name = "tempmail-worker"
+main = "tempmail-worker.js"
+compatibility_date = "2025-01-01"
+
+# 启用 Workers 标准依赖解析（让 import 'postal-mime' 自动从 npm 打包）
+[build]
+command = ""

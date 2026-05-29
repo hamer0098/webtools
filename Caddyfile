@@ -1,0 +1,7 @@
+# 把 your-domain.com 换成你真实的域名（A 记录已指向本服务器 IP）
+# Caddy 会自动向 Let's Encrypt 申请并续期 HTTPS 证书。
+your-domain.com {
+	encode zstd gzip
+	# 反代到同一 docker 网络里的 webtools 容器（不对外暴露 3000）
+	reverse_proxy webtools:3000
+}
