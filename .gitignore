@@ -24,3 +24,6 @@ next-env.d.ts
 # 注意：CLAUDE.md 和 .claude/ 仍然不传（给 AI 的私有上下文，留本地）。
 !README.md
 !cf-worker/README.md
+
+# TS 增量编译缓存，不应入库（会导致 tsc 误报旧结果）
+tsconfig.tsbuildinfo
