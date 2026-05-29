@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Menu, X } from 'lucide-react';
 import Sidebar from './Sidebar';
+import ToolHost from './ToolHost';
 
 type ToolItem = {
   slug: string;
@@ -20,6 +21,7 @@ export default function ShellClient({
   children: React.ReactNode;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const enabledSlugs = useMemo(() => tools.map((t) => t.slug), [tools]);
 
   return (
     <div className="min-h-screen md:flex">
@@ -64,7 +66,12 @@ export default function ShellClient({
         </>
       )}
 
-      <main className="flex-1 overflow-auto">{children}</main>
+      <main className="flex-1 overflow-auto">
+        {/* 工具路由页 return null，内容由常驻 ToolHost 渲染（保活）；
+            首页 / 404 等非工具内容仍通过 children 渲染 */}
+        {children}
+        <ToolHost enabledSlugs={enabledSlugs} />
+      </main>
     </div>
   );
 }

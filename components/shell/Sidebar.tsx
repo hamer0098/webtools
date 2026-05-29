@@ -21,6 +21,24 @@ export default function Sidebar({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+
+  // 左键点击用 history.pushState 即时切换 URL（Next 会同步到 usePathname，
+  // 不触发服务端往返），ToolHost 据此瞬时显示对应工具。修饰键/中键等保持默认，
+  // 以便「在新标签页打开」仍然工作；真实导航也能正确渲染，是兜底。
+  const handleNav = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    href: string,
+  ) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+      return;
+    }
+    e.preventDefault();
+    if (window.location.pathname !== href) {
+      window.history.pushState(null, '', href);
+    }
+    onNavigate?.();
+  };
+
   const activeSlug = useMemo(() => {
     const m = pathname?.match(/^\/([^/]+)/);
     return m ? m[1] : null;
@@ -45,7 +63,11 @@ export default function Sidebar({
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r border-neutral-200 bg-neutral-50 md:h-screen md:w-60 dark:border-neutral-800 dark:bg-neutral-900/50">
       <div className="px-4 py-4">
-        <Link href="/" onClick={onNavigate} className="text-lg font-semibold">
+        <Link
+          href="/"
+          onClick={(e) => handleNav(e, '/')}
+          className="text-lg font-semibold"
+        >
           Webtools
         </Link>
       </div>
@@ -63,7 +85,7 @@ export default function Sidebar({
                   <li key={t.slug}>
                     <Link
                       href={`/${t.slug}`}
-                      onClick={onNavigate}
+                      onClick={(e) => handleNav(e, `/${t.slug}`)}
                       className={clsx(
                         'flex items-center gap-2 rounded px-2 py-1.5 text-sm',
                         active

@@ -1,10 +1,7 @@
 import { notFound } from 'next/navigation';
-import ToolLoader from '@/components/shell/ToolLoader';
 import { isValidSlug } from '@/lib/utils/slug';
-import { getDb } from '@/lib/db';
 
-export const dynamic = 'force-dynamic';
-
+// 内容由常驻 ToolHost 渲染；二级 slug 从 pathname 读取。这里只校验 slug 合法性。
 export default async function TempmailSlugPage({
   params,
 }: {
@@ -12,13 +9,5 @@ export default async function TempmailSlugPage({
 }) {
   const { slug } = await params;
   if (!isValidSlug(slug)) notFound();
-
-  const db = getDb();
-  const row = db
-    .prepare('SELECT enabled FROM tools WHERE slug = ?')
-    .get('tempmail') as { enabled: number } | undefined;
-  if (!row || row.enabled !== 1) notFound();
-
-  // 复用 ToolLoader 既有的 noteSlug 通道传递二级 slug
-  return <ToolLoader slug="tempmail" noteSlug={slug} />;
+  return null;
 }

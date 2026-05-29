@@ -1,10 +1,8 @@
 import { notFound } from 'next/navigation';
-import ToolLoader from '@/components/shell/ToolLoader';
 import { isToolSlug } from '@/lib/tools-registry';
-import { getDb } from '@/lib/db';
 
-export const dynamic = 'force-dynamic';
-
+// 内容由 ShellClient 里常驻的 ToolHost 渲染（保活，避免切换工具时重挂载）。
+// 这里只校验 slug 是否为已知工具；启用与否由 ToolHost 客户端判断。
 export default async function ToolPage({
   params,
 }: {
@@ -12,12 +10,5 @@ export default async function ToolPage({
 }) {
   const { tool } = await params;
   if (!isToolSlug(tool)) notFound();
-
-  const db = getDb();
-  const row = db
-    .prepare('SELECT enabled FROM tools WHERE slug = ?')
-    .get(tool) as { enabled: number } | undefined;
-  if (!row || row.enabled !== 1) notFound();
-
-  return <ToolLoader slug={tool} />;
+  return null;
 }
