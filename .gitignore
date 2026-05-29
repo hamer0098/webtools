@@ -18,3 +18,9 @@ data/*
 .idea
 
 next-env.d.ts
+
+# 全局 ~/.gitignore_global 用 *.md 排除了所有 markdown，
+# 但 README 是项目门面文档，需要进仓库，这里显式捞回来。
+# 注意：CLAUDE.md 和 .claude/ 仍然不传（给 AI 的私有上下文，留本地）。
+!README.md
+!cf-worker/README.md
