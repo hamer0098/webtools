@@ -12,6 +12,10 @@ name = "tempmail-worker"
 main = "tempmail-worker.js"
 compatibility_date = "2025-01-01"
 
+# Email Worker 由邮件事件触发，不需要 HTTP 路由 / workers.dev 子域名。
+# 不关掉的话 deploy 会要求先注册 workers.dev 子域名而失败。
+workers_dev = false
+
 # 启用 Workers 标准依赖解析（让 import 'postal-mime' 自动从 npm 打包）
 [build]
 command = ""
