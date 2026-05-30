@@ -143,14 +143,6 @@ export function getFile(id: string): SendFileRow | undefined {
   return getDb().prepare('SELECT * FROM send_files WHERE id = ?').get(id) as SendFileRow | undefined;
 }
 
-/** 原子地把文件标为已下载；若已被标记则返回 false（用于一次性下载并发保护） */
-export function claimDownload(id: string): boolean {
-  const r = getDb()
-    .prepare('UPDATE send_files SET downloaded_at = ? WHERE id = ? AND downloaded_at IS NULL')
-    .run(Date.now(), id);
-  return r.changes === 1;
-}
-
 export function deleteFileRow(id: string) {
   getDb().prepare('DELETE FROM send_files WHERE id = ?').run(id);
 }
