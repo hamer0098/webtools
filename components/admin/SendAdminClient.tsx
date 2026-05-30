@@ -15,10 +15,20 @@ type SendCode = {
   max_uses: number | null;
   used_count: number;
   file_ttl_ms: number | null;
+  max_file_bytes: number | null;
   used_at: number | null;
   used_by_ip: string | null;
   created_at: number;
 };
+
+/** 单文件上限：留空默认 50MB，硬上限 350MB（与后端 SEND_LIMITS 对应） */
+const DEFAULT_MAX_FILE_MB = 50;
+const MAX_FILE_MB_CAP = 350;
+
+function fmtMaxSize(bytes: number | null): string {
+  if (bytes == null) return `默认 ${DEFAULT_MAX_FILE_MB}MB`;
+  return `${Math.round(bytes / 1024 / 1024)}MB`;
+}
 
 const TTL_UNITS = {
   minute: { label: '分钟', ms: 60_000 },
@@ -78,6 +88,7 @@ export default function SendAdminClient({
   const [newMaxUses, setNewMaxUses] = useState(1);
   const [newTtlValue, setNewTtlValue] = useState<string>('');
   const [newTtlUnit, setNewTtlUnit] = useState<TtlUnit>('day');
+  const [newMaxFileMb, setNewMaxFileMb] = useState<string>('');
   const [copiedId, setCopiedId] = useState<number | null>(null);
 
   const createCode = async () => {
@@ -92,6 +103,19 @@ export default function SendAdminClient({
       fileTtlMs = Math.floor(n * TTL_UNITS[newTtlUnit].ms);
     }
 
+    const mbTrimmed = newMaxFileMb.trim();
+    let maxFileMb: number | null = null;
+    let maxFileBytes: number | null = null;
+    if (mbTrimmed) {
+      const mb = Math.floor(Number(mbTrimmed));
+      if (!Number.isFinite(mb) || mb < 1 || mb > MAX_FILE_MB_CAP) {
+        alert(`单文件大小上限需在 1 ~ ${MAX_FILE_MB_CAP}MB 之间`);
+        return;
+      }
+      maxFileMb = mb;
+      maxFileBytes = mb * 1024 * 1024;
+    }
+
     const r = await fetch('/api/admin/send/codes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -101,6 +125,7 @@ export default function SendAdminClient({
         note: newNote || undefined,
         maxUses: newKind === 'onetime' ? newMaxUses : undefined,
         fileTtlMs,
+        maxFileMb,
       }),
     });
     const d = await r.json();
@@ -118,6 +143,7 @@ export default function SendAdminClient({
         max_uses: newKind === 'onetime' ? newMaxUses : null,
         used_count: 0,
         file_ttl_ms: fileTtlMs,
+        max_file_bytes: maxFileBytes,
         used_at: null,
         used_by_ip: null,
         created_at: Date.now(),
@@ -129,6 +155,7 @@ export default function SendAdminClient({
     setNewMaxUses(1);
     setNewTtlValue('');
     setNewTtlUnit('day');
+    setNewMaxFileMb('');
     setCreating(false);
   };
 
@@ -330,6 +357,19 @@ export default function SendAdminClient({
               </select>
               <span className="text-xs text-neutral-500">未下载时自动清理</span>
             </label>
+            <label className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-neutral-600 dark:text-neutral-400">单文件大小上限</span>
+              <input
+                type="number"
+                min={1}
+                max={MAX_FILE_MB_CAP}
+                value={newMaxFileMb}
+                onChange={(e) => setNewMaxFileMb(e.target.value)}
+                placeholder={`留空默认 ${DEFAULT_MAX_FILE_MB}MB`}
+                className="w-32 rounded border border-neutral-300 bg-white px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+              />
+              <span className="text-xs text-neutral-500">MB（最大 {MAX_FILE_MB_CAP}）</span>
+            </label>
             <input
               value={newNote}
               onChange={(e) => setNewNote(e.target.value)}
@@ -364,13 +404,14 @@ export default function SendAdminClient({
                 <th className="px-3 py-2">最近使用</th>
                 <th className="px-3 py-2">创建</th>
                 <th className="px-3 py-2">销毁时间</th>
+                <th className="px-3 py-2">单文件上限</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
               {codes.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-3 py-6 text-center text-neutral-500">
+                  <td colSpan={10} className="px-3 py-6 text-center text-neutral-500">
                     暂无密码或邀请码，新建一个开放给前台使用
                   </td>
                 </tr>
@@ -428,6 +469,7 @@ export default function SendAdminClient({
                       </td>
                       <td className="px-3 py-2 text-xs text-neutral-500">{fmtTime(c.created_at)}</td>
                       <td className="px-3 py-2 text-xs text-neutral-500">{fmtTtl(c.file_ttl_ms)}</td>
+                      <td className="px-3 py-2 text-xs text-neutral-500">{fmtMaxSize(c.max_file_bytes)}</td>
                       <td className="px-3 py-2">
                         <div className="flex justify-end gap-1">
                           {!exhausted && (

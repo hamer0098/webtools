@@ -12,6 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getDb } from './db';
+import { SEND_LIMITS } from './limits';
 
 export type SendCodeRow = {
   id: number;
@@ -25,6 +26,8 @@ export type SendCodeRow = {
   used_count: number;
   /** 该 code 上传的文件保留时长（毫秒）；NULL 表示沿用全局默认 */
   file_ttl_ms: number | null;
+  /** 该 code 允许上传的单文件最大大小（明文字节）；NULL 表示沿用全局默认 50MB */
+  max_file_bytes: number | null;
   /** 最近一次使用时间戳 */
   used_at: number | null;
   /** 最近一次使用 IP */
@@ -55,6 +58,32 @@ export function findCode(code: string): SendCodeRow | undefined {
   return getDb()
     .prepare('SELECT * FROM send_codes WHERE code = ? AND enabled = 1')
     .get(code.trim()) as SendCodeRow | undefined;
+}
+
+export function getCodeById(id: number): SendCodeRow | undefined {
+  return getDb().prepare('SELECT * FROM send_codes WHERE id = ?').get(id) as
+    | SendCodeRow
+    | undefined;
+}
+
+/**
+ * 把 code 行上的 per-code 配置解析成实际生效的限制：
+ * 单文件大小上限（明文字节）+ 文件保留时长（毫秒）。
+ * 列为空 / 非正数时回退全局默认。row 为空（如 admin 直传无 code）时给全局最大上限。
+ */
+export function resolveCodeLimits(row: SendCodeRow | undefined): {
+  maxBytes: number;
+  ttlMs: number;
+} {
+  const maxBytes =
+    row && row.max_file_bytes && row.max_file_bytes > 0
+      ? row.max_file_bytes
+      : row
+        ? SEND_LIMITS.DEFAULT_MAX_FILE_BYTES
+        : SEND_LIMITS.MAX_FILE_BYTES;
+  const ttlMs =
+    row && row.file_ttl_ms && row.file_ttl_ms > 0 ? row.file_ttl_ms : SEND_LIMITS.DEFAULT_TTL_MS;
+  return { maxBytes, ttlMs };
 }
 
 /** 使用一次后累加 used_count + 记录最近 IP/时间。返回更新后的 used_count。 */

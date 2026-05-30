@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
-import { findCode, isCodeUsable } from '@/lib/send';
+import { findCode, isCodeUsable, getCodeById, resolveCodeLimits } from '@/lib/send';
 import { consumeRateLimit, getClientIp, rateLimitResponse } from '@/lib/rate-limit';
 import { RATE_LIMITS, SEND_LIMITS } from '@/lib/limits';
 import { logEvent, AUDIT_EVENTS } from '@/lib/audit';
@@ -33,13 +33,14 @@ export async function POST(req: Request) {
   };
   await session.save();
 
+  const limits = resolveCodeLimits(row);
   logEvent(AUDIT_EVENTS.SEND_AUTH_OK, req, { codeId: row.id, kind: row.kind });
   return NextResponse.json({
     ok: true,
     kind: row.kind,
     expiresAt: session.sendAuth.expiresAt,
-    maxBytes: SEND_LIMITS.MAX_CIPHERTEXT_BYTES,
-    ttlMs: SEND_LIMITS.DEFAULT_TTL_MS,
+    maxBytes: limits.maxBytes,
+    ttlMs: limits.ttlMs,
   });
 }
 
@@ -47,11 +48,15 @@ export async function GET() {
   const session = await getSession();
   const auth = session.sendAuth;
   const valid = auth && auth.expiresAt > Date.now();
+  // 按当前授权的 code 解析出 per-code 的大小上限 / 保留时长；未授权回退全局默认
+  const limits = valid
+    ? resolveCodeLimits(getCodeById(auth!.codeId))
+    : { maxBytes: SEND_LIMITS.DEFAULT_MAX_FILE_BYTES, ttlMs: SEND_LIMITS.DEFAULT_TTL_MS };
   return NextResponse.json({
     authed: !!valid,
     kind: valid ? auth!.kind : null,
     expiresAt: valid ? auth!.expiresAt : null,
-    maxBytes: SEND_LIMITS.MAX_CIPHERTEXT_BYTES,
-    ttlMs: SEND_LIMITS.DEFAULT_TTL_MS,
+    maxBytes: limits.maxBytes,
+    ttlMs: limits.ttlMs,
   });
 }

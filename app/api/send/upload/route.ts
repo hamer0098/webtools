@@ -12,6 +12,7 @@ import {
   maybeCleanup,
   getUploadsDir,
   deleteFileFromDisk,
+  resolveCodeLimits,
   type SendCodeRow,
 } from '@/lib/send';
 import { getClientIp, consumeRateLimit, rateLimitResponse } from '@/lib/rate-limit';
@@ -40,7 +41,8 @@ export async function PUT(req: Request) {
   const session = await getSession();
   let codeId: number | null = null;
   let kind: 'permanent' | 'onetime' | 'admin' = 'admin';
-  let ttlMs: number = SEND_LIMITS.DEFAULT_TTL_MS;
+  // admin 直传无 code → resolveCodeLimits(undefined) 给全局最大上限 + 默认 TTL
+  let { maxBytes, ttlMs } = resolveCodeLimits(undefined);
 
   const auth = session.sendAuth;
   const hasSendAuth = !!(auth && auth.expiresAt > Date.now());
@@ -57,12 +59,13 @@ export async function PUT(req: Request) {
     }
     codeId = codeRow.id;
     kind = codeRow.kind;
-    if (codeRow.file_ttl_ms && codeRow.file_ttl_ms > 0) {
-      ttlMs = codeRow.file_ttl_ms;
-    }
+    ({ maxBytes, ttlMs } = resolveCodeLimits(codeRow));
   } else if (!session.admin) {
     return NextResponse.json({ error: '请先输入密码或邀请码' }, { status: 401 });
   }
+
+  // 服务端按密文长度兜底校验：明文上限 + 余量（覆盖分块加密开销）
+  const sizeLimit = maxBytes + SEND_LIMITS.CIPHERTEXT_MARGIN_BYTES;
 
   // 2. 速率限制（admin 也限，防止误操作）
   const ip = getClientIp(req);
@@ -82,9 +85,9 @@ export async function PUT(req: Request) {
   if (!declaredLen || Number.isNaN(declaredLen) || declaredLen <= 0) {
     return NextResponse.json({ error: '缺失 Content-Length' }, { status: 411 });
   }
-  if (declaredLen > SEND_LIMITS.MAX_CIPHERTEXT_BYTES) {
+  if (declaredLen > sizeLimit) {
     return NextResponse.json(
-      { error: `文件超过上限 ${Math.round(SEND_LIMITS.MAX_CIPHERTEXT_BYTES / 1024 / 1024)}MB` },
+      { error: `文件超过上限 ${Math.round(maxBytes / 1024 / 1024)}MB` },
       { status: 413 },
     );
   }
@@ -98,7 +101,7 @@ export async function PUT(req: Request) {
   const filePath = path.join(uploadsDir, `${id}.bin`);
 
   let written = 0;
-  const limit = SEND_LIMITS.MAX_CIPHERTEXT_BYTES;
+  const limit = sizeLimit;
   let aborted = false;
 
   const nodeReadable = Readable.fromWeb(req.body as unknown as import('node:stream/web').ReadableStream);

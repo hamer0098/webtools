@@ -3,6 +3,7 @@ import { customAlphabet } from 'nanoid';
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/session';
 import { logEvent, AUDIT_EVENTS } from '@/lib/audit';
+import { SEND_LIMITS } from '@/lib/limits';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +14,7 @@ export async function GET() {
   if (!session.admin) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   const rows = getDb()
     .prepare(
-      `SELECT id, code, kind, note, enabled, max_uses, used_count, file_ttl_ms,
+      `SELECT id, code, kind, note, enabled, max_uses, used_count, file_ttl_ms, max_file_bytes,
               used_at, used_by_ip, created_at
        FROM send_codes
        ORDER BY created_at DESC`,
@@ -33,6 +34,8 @@ export async function POST(req: Request) {
     maxUses?: number;
     /** 文件销毁时间（毫秒）；null/undefined 表示沿用全局默认 3 天 */
     fileTtlMs?: number | null;
+    /** 单文件大小上限（MB）；null/undefined 表示沿用全局默认 50MB */
+    maxFileMb?: number | null;
   };
   if (!body || (body.kind !== 'permanent' && body.kind !== 'onetime')) {
     return NextResponse.json({ error: 'invalid kind' }, { status: 400 });
@@ -67,20 +70,35 @@ export async function POST(req: Request) {
     fileTtlMs = v;
   }
 
+  // 单文件大小上限：允许 1MB ~ 全局硬上限（350MB）；不填 / null → 用全局默认 50MB
+  const MAX_MB = Math.floor(SEND_LIMITS.MAX_FILE_BYTES / (1024 * 1024));
+  let maxFileBytes: number | null = null;
+  if (body.maxFileMb != null && Number.isFinite(body.maxFileMb)) {
+    const mb = Math.floor(body.maxFileMb);
+    if (mb < 1 || mb > MAX_MB) {
+      return NextResponse.json(
+        { error: `单文件大小上限需在 1 ~ ${MAX_MB}MB 之间` },
+        { status: 400 },
+      );
+    }
+    maxFileBytes = mb * 1024 * 1024;
+  }
+
   try {
     const r = getDb()
       .prepare(
-        `INSERT INTO send_codes (code, kind, note, max_uses, file_ttl_ms, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO send_codes (code, kind, note, max_uses, file_ttl_ms, max_file_bytes, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(code, body.kind, body.note || null, maxUses, fileTtlMs, Date.now());
+      .run(code, body.kind, body.note || null, maxUses, fileTtlMs, maxFileBytes, Date.now());
     logEvent(AUDIT_EVENTS.SEND_CODE_CREATE, req, {
       id: r.lastInsertRowid,
       kind: body.kind,
       maxUses,
       fileTtlMs,
+      maxFileBytes,
     });
-    return NextResponse.json({ id: r.lastInsertRowid, code, maxUses, fileTtlMs });
+    return NextResponse.json({ id: r.lastInsertRowid, code, maxUses, fileTtlMs, maxFileBytes });
   } catch (e: unknown) {
     if (e && typeof e === 'object' && 'code' in e && (e as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') {
       return NextResponse.json({ error: '该 code 已存在' }, { status: 409 });

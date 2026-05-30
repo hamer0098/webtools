@@ -15,8 +15,15 @@ export const NOTE_LIMITS = {
 // ---------- 匿名文件 ----------
 
 export const SEND_LIMITS = {
-  /** 单文件密文大小上限：原始 300MB + GCM tag 余量 */
-  MAX_CIPHERTEXT_BYTES: 320 * 1024 * 1024,
+  /** 单文件大小硬上限（明文字节）：admin 新建 code 时可设的最大值，也是 admin 直传上限 */
+  MAX_FILE_BYTES: 350 * 1024 * 1024, // 350MB
+  /** code 未单独设置时的默认单文件上限（明文字节） */
+  DEFAULT_MAX_FILE_BYTES: 50 * 1024 * 1024, // 50MB
+  /**
+   * 服务端按「密文长度」兜底校验时，在明文上限之上额外放行的余量。
+   * 分块加密每 4MiB 块带 iv(12)+tag(16)=28B 开销，350MB 也仅 ~2.4KB；1MB 余量足够覆盖。
+   */
+  CIPHERTEXT_MARGIN_BYTES: 1 * 1024 * 1024,
   /** 未下载文件默认保留时长（毫秒） */
   DEFAULT_TTL_MS: 3 * 24 * 60 * 60_000, // 3 天
   /** 验证通过后授权有效期 */

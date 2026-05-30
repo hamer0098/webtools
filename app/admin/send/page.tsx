@@ -13,7 +13,7 @@ export default async function AdminSendPage() {
   const db = getDb();
   const codes = db
     .prepare(
-      `SELECT id, code, kind, note, enabled, max_uses, used_count, file_ttl_ms,
+      `SELECT id, code, kind, note, enabled, max_uses, used_count, file_ttl_ms, max_file_bytes,
               used_at, used_by_ip, created_at
        FROM send_codes ORDER BY created_at DESC`,
     )
