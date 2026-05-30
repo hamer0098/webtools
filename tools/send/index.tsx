@@ -1,12 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FileLock2, Upload, KeyRound, Link as LinkIcon, Check, AlertCircle, RotateCcw } from 'lucide-react';
+import { FileLock2, Upload, KeyRound, Link as LinkIcon, Check, AlertCircle, RotateCcw, X } from 'lucide-react';
 import {
   b64urlEncode,
-  encryptFile,
+  encryptFileToBlob,
   encryptMetadata,
   generateMasterKey,
+  FILE_FORMAT_VERSION,
+  FILE_CHUNK_SIZE,
 } from './crypto';
 
 type AuthState =
@@ -148,6 +150,17 @@ function Uploader({
   const [file, setFile] = useState<File | null>(null);
   const [upload, setUpload] = useState<UploadState>({ state: 'idle' });
   const inputRef = useRef<HTMLInputElement>(null);
+  // 进行中的上传任务（加密 signal + 上传 xhr），用于「取消上传」
+  const taskRef = useRef<{ controller: AbortController; xhr: XMLHttpRequest | null } | null>(null);
+
+  const cancel = () => {
+    const t = taskRef.current;
+    if (!t) return;
+    taskRef.current = null;
+    t.controller.abort(); // 中断加密循环
+    t.xhr?.abort(); // 中断上传请求
+    setUpload({ state: 'idle' }); // 保留已选文件，可直接重传
+  };
 
   const handleFile = (f: File | null | undefined) => {
     if (!f) return;
@@ -170,14 +183,34 @@ function Uploader({
 
   const submit = async () => {
     if (!file) return;
+    const controller = new AbortController();
+    const task = { controller, xhr: null as XMLHttpRequest | null };
+    taskRef.current = task;
     try {
       setUpload({ state: 'encrypting', progress: 0 });
       const master = await generateMasterKey();
-      const meta = await encryptMetadata({ name: file.name, size: file.size, type: file.type || '' }, master);
-      const ct = await encryptFile(file, master);
-      setUpload({ state: 'uploading', progress: 0 });
+      const meta = await encryptMetadata(
+        {
+          name: file.name,
+          size: file.size,
+          type: file.type || '',
+          v: FILE_FORMAT_VERSION,
+          chunkSize: FILE_CHUNK_SIZE,
+        },
+        master,
+      );
+      // 分块流式加密 → Blob（堆峰值 ~1x，可逐块报进度，不阻塞主线程）
+      const ct = await encryptFileToBlob(
+        file,
+        master,
+        (p) => setUpload({ state: 'encrypting', progress: p }),
+        controller.signal,
+      );
+      if (controller.signal.aborted) return; // 加密刚结束就被取消
 
+      setUpload({ state: 'uploading', progress: 0 });
       const xhr = new XMLHttpRequest();
+      task.xhr = xhr;
       xhr.open('PUT', '/api/send/upload');
       xhr.setRequestHeader('x-send-metadata', meta);
       xhr.upload.onprogress = (e) => {
@@ -185,7 +218,9 @@ function Uploader({
           setUpload({ state: 'uploading', progress: e.loaded / e.total });
         }
       };
+      xhr.onabort = () => {}; // 取消由 cancel() 统一处理，这里不改状态
       xhr.onload = () => {
+        taskRef.current = null;
         if (xhr.status >= 200 && xhr.status < 300) {
           const data = JSON.parse(xhr.responseText) as { id: string; expiresAt: number };
           const url = `${window.location.origin}/anonfile/d/${data.id}#${b64urlEncode(master)}`;
@@ -199,10 +234,17 @@ function Uploader({
           setUpload({ state: 'error', message: msg });
         }
       };
-      xhr.onerror = () => setUpload({ state: 'error', message: '网络错误' });
+      xhr.onerror = () => {
+        taskRef.current = null;
+        setUpload({ state: 'error', message: '网络错误' });
+      };
       xhr.send(ct);
     } catch (e) {
+      if (controller.signal.aborted || (e instanceof DOMException && e.name === 'AbortError')) {
+        return; // 用户主动取消，cancel() 已把状态置回 idle
+      }
       console.error(e);
+      taskRef.current = null;
       setUpload({ state: 'error', message: e instanceof Error ? e.message : '加密失败' });
     }
   };
@@ -229,7 +271,18 @@ function Uploader({
           />
 
           {upload.state === 'encrypting' && (
-            <div className="text-sm text-neutral-500">浏览器加密中…</div>
+            <div>
+              <div className="mb-1 flex justify-between text-xs text-neutral-500">
+                <span>浏览器加密中</span>
+                <span>{Math.round(upload.progress * 100)}%</span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded bg-neutral-200 dark:bg-neutral-800">
+                <div
+                  className="h-full bg-blue-600 transition-all"
+                  style={{ width: `${upload.progress * 100}%` }}
+                />
+              </div>
+            </div>
           )}
           {upload.state === 'uploading' && (
             <div>
@@ -257,14 +310,25 @@ function Uploader({
               <br />
               生成的链接仅能下载一次。
             </p>
-            <button
-              onClick={submit}
-              disabled={!file || upload.state === 'encrypting' || upload.state === 'uploading'}
-              className="flex items-center gap-1 rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              <Upload className="h-4 w-4" />
-              加密并上传
-            </button>
+            <div className="flex items-center gap-2">
+              {(upload.state === 'encrypting' || upload.state === 'uploading') && (
+                <button
+                  onClick={cancel}
+                  className="flex items-center gap-1 rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                >
+                  <X className="h-4 w-4" />
+                  取消上传
+                </button>
+              )}
+              <button
+                onClick={submit}
+                disabled={!file || upload.state === 'encrypting' || upload.state === 'uploading'}
+                className="flex items-center gap-1 rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                <Upload className="h-4 w-4" />
+                加密并上传
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { FileLock2, Download, AlertCircle, ShieldCheck } from 'lucide-react';
-import { b64urlDecode, decryptMetadata, decryptFile, type FileMetadata } from '@/tools/send/crypto';
+import {
+  b64urlDecode,
+  decryptMetadata,
+  decryptFile,
+  decryptStreamToBlob,
+  type FileMetadata,
+} from '@/tools/send/crypto';
 
 type State =
   | { state: 'loading' }
@@ -71,25 +77,40 @@ export default function DownloadClient({ id }: { id: string }) {
       }
 
       const reader = r.body.getReader();
-      const chunks: Uint8Array[] = [];
-      let received = 0;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        received += value.length;
-        setState({ state: 'downloading', progress: received / size, meta, key, size });
+      let blob: Blob;
+
+      if (meta.v === 2 && meta.chunkSize) {
+        // v2 分块流式：边下边解，堆峰值 ~1x（仅一块缓冲 + 解密输出）
+        blob = await decryptStreamToBlob(
+          reader,
+          key,
+          meta.chunkSize,
+          meta.type || '',
+          (received) => setState({ state: 'downloading', progress: received / size, meta, key, size }),
+        );
+        setState({ state: 'decrypting', meta });
+      } else {
+        // v1 旧整块格式回退：累积全部密文后整块解密
+        const chunks: Uint8Array[] = [];
+        let received = 0;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          received += value.length;
+          setState({ state: 'downloading', progress: received / size, meta, key, size });
+        }
+        setState({ state: 'decrypting', meta });
+        const cipher = new Uint8Array(received);
+        let off = 0;
+        for (const c of chunks) {
+          cipher.set(c, off);
+          off += c.length;
+        }
+        const plain = await decryptFile(cipher, key);
+        blob = new Blob([plain], { type: meta.type || 'application/octet-stream' });
       }
 
-      setState({ state: 'decrypting', meta });
-      const cipher = new Uint8Array(received);
-      let off = 0;
-      for (const c of chunks) {
-        cipher.set(c, off);
-        off += c.length;
-      }
-      const plain = await decryptFile(cipher, key);
-      const blob = new Blob([plain], { type: meta.type || 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
