@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import * as Icons from 'lucide-react';
 import clsx from 'clsx';
 
@@ -13,6 +13,11 @@ type ToolItem = {
   group_name: string | null;
 };
 
+// 模块级：记录每个工具最近访问的完整路径（客户端单例，跨 Sidebar 实例 / 抽屉共享）。
+// 点侧边栏时优先回到这个路径，使 notepad/tempmail 等带二级 slug 的工具能命中
+// ToolHost 的保活实例（回到上次那篇笔记 / 那个邮箱），而不是每次走裸入口重新加载。
+const lastPathBySlug = new Map<string, string>();
+
 export default function Sidebar({
   tools,
   onNavigate,
@@ -21,6 +26,13 @@ export default function Sidebar({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+
+  // 记录当前工具的完整路径，供下次点侧边栏时直接回到（命中保活实例，不重新加载）
+  useEffect(() => {
+    if (!pathname) return;
+    const slug = pathname.split('/').filter(Boolean)[0];
+    if (slug) lastPathBySlug.set(slug, pathname);
+  }, [pathname]);
 
   // 左键点击用 history.pushState 即时切换 URL（Next 会同步到 usePathname，
   // 不触发服务端往返），ToolHost 据此瞬时显示对应工具。修饰键/中键等保持默认，
@@ -33,8 +45,11 @@ export default function Sidebar({
       return;
     }
     e.preventDefault();
-    if (window.location.pathname !== href) {
-      window.history.pushState(null, '', href);
+    // 若该工具最近访问过更具体的路径（如 /notepad/{slug}），直接回到它
+    const slug = href.split('/').filter(Boolean)[0];
+    const target = (slug && lastPathBySlug.get(slug)) || href;
+    if (window.location.pathname !== target) {
+      window.history.pushState(null, '', target);
     }
     onNavigate?.();
   };
