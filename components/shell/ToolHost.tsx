@@ -5,6 +5,13 @@ import { usePathname } from 'next/navigation';
 import { TOOLS_COMPONENTS } from '@/lib/tools-components';
 import { isToolSlug, type ToolSlug } from '@/lib/tools-registry';
 
+// 这些工具的「裸 slug 入口」(无二级 slug,如 /notepad、/tempmail)只是一次性
+// 重定向 stub：组件 mount 时生成/恢复一个二级 slug 并 router.replace 跳走。
+// 它们不能 keep-alive —— 复用旧实例时跳转 useEffect 依赖未变不会重跑,会永远卡在
+// 「加载中 / 初始化中…」。所以裸入口只在激活时渲染、跳走即卸载,每次进入都重新 mount。
+// 新增需要二级 slug 的工具(照 notepad/tempmail 模式)时,记得把 slug 加进这里。
+const REDIRECT_ENTRY = new Set<ToolSlug>(['notepad', 'tempmail']);
+
 /**
  * 常驻工具宿主：挂在持久化的 shell 布局里，不随路由切换卸载。
  *
@@ -22,16 +29,25 @@ export default function ToolHost({ enabledSlugs }: { enabledSlugs: string[] }) {
   const onHome = parts.length === 0; // pathname === '/'
   const isTool = isToolSlug(slug);
   const enabled = isTool && enabledSlugs.includes(slug);
+
+  // 裸重定向入口(无二级 slug 的 notepad/tempmail)不保活,每次重新 mount 执行跳转
+  const isRedirectEntry =
+    enabled && !sub && REDIRECT_ENTRY.has(slug as ToolSlug);
+
   // 不同二级 slug 视为不同实例（各自保活），切换主工具则复用同一实例
-  const activeKey = enabled ? slug + (sub ? '/' + sub : '') : '';
+  const activeKey =
+    enabled && !isRedirectEntry ? slug + (sub ? '/' + sub : '') : '';
 
   // 已挂载过的工具实例表。在渲染期惰性累加是幂等的：同一个 activeKey 只加一次
   const mounted = useRef<Map<string, { slug: ToolSlug; sub?: string }>>(
     new Map(),
   );
-  if (enabled && !mounted.current.has(activeKey)) {
+  if (activeKey && !mounted.current.has(activeKey)) {
     mounted.current.set(activeKey, { slug: slug as ToolSlug, sub });
   }
+
+  // 裸入口组件：仅当前激活时渲染,跳走即卸载（不进保活表）
+  const EntryTool = isRedirectEntry ? TOOLS_COMPONENTS[slug as ToolSlug] : null;
 
   return (
     <>
@@ -47,6 +63,7 @@ export default function ToolHost({ enabledSlugs }: { enabledSlugs: string[] }) {
           </div>
         );
       })}
+      {EntryTool && <EntryTool />}
       {isTool && !enabled && (
         <div className="p-8 text-sm text-neutral-500">该工具未启用</div>
       )}
