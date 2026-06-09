@@ -483,9 +483,9 @@ function DoneCard({ url, expiresAt, onReset }: { url: string; expiresAt: number;
         未下载时将在 {new Date(expiresAt).toLocaleString()} 自动删除。
       </p>
       <div className="flex flex-col items-stretch gap-3 sm:flex-row">
-        <div className="flex flex-1 flex-col gap-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
           <div className="flex items-stretch gap-2">
-            <div className="flex flex-1 items-center gap-2 overflow-hidden rounded border border-neutral-300 bg-white px-3 py-2 font-mono text-xs dark:border-neutral-700 dark:bg-neutral-950">
+            <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden rounded border border-neutral-300 bg-white px-3 py-2 font-mono text-xs dark:border-neutral-700 dark:bg-neutral-950">
               <LinkIcon className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
               <span className="truncate">{url}</span>
             </div>
