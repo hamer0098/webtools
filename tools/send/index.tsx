@@ -339,19 +339,19 @@ function Uploader({
               {busy && (
                 <button
                   onClick={cancel}
-                  className="flex items-center gap-1 rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                  className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
                 >
                   <X className="h-4 w-4" />
-                  取消上传
+                  取消
                 </button>
               )}
               <button
                 onClick={submit}
                 disabled={files.length === 0 || overLimit || busy}
-                className="flex items-center gap-1 rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 <Upload className="h-4 w-4" />
-                加密并上传
+                加密上传
               </button>
             </div>
           </div>
