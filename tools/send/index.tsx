@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FileLock2, Upload, KeyRound, Link as LinkIcon, Check, AlertCircle, RotateCcw, X, FileArchive } from 'lucide-react';
+import { FileLock2, Upload, KeyRound, Link as LinkIcon, Check, AlertCircle, RotateCcw, X, FileArchive, NotebookPen, Loader2 } from 'lucide-react';
 import {
   b64urlEncode,
   encryptFileToBlob,
@@ -454,6 +454,7 @@ function Progress({ label, progress }: { label: string; progress: number }) {
 function DoneCard({ url, expiresAt, onReset }: { url: string; expiresAt: number; onReset: () => void }) {
   const [copied, setCopied] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
+  const [noteOpen, setNoteOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -511,7 +512,13 @@ function DoneCard({ url, expiresAt, onReset }: { url: string; expiresAt: number;
           <span className="text-xs text-neutral-500">扫码下载</span>
         </div>
       </div>
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-end gap-2">
+        <button
+          onClick={() => setNoteOpen(true)}
+          className="flex items-center gap-1 rounded border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+        >
+          <NotebookPen className="h-3.5 w-3.5" /> 发送到笔记
+        </button>
         <button
           onClick={onReset}
           className="flex items-center gap-1 rounded border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
@@ -519,6 +526,197 @@ function DoneCard({ url, expiresAt, onReset }: { url: string; expiresAt: number;
           <RotateCcw className="h-3.5 w-3.5" /> 再传一个
         </button>
       </div>
+      {noteOpen && <SendToNoteModal url={url} onClose={() => setNoteOpen(false)} />}
     </div>
   );
+}
+
+/** 把上传完成的下载链接追加到某条在线笔记末尾 */
+function SendToNoteModal({ url, onClose }: { url: string; onClose: () => void }) {
+  const [target, setTarget] = useState('');
+  const [password, setPassword] = useState('');
+  const [status, setStatus] = useState<
+    { state: 'idle' } | { state: 'sending' } | { state: 'done'; slug: string } | { state: 'error'; message: string }
+  >({ state: 'idle' });
+
+  const sending = status.state === 'sending';
+
+  const send = async () => {
+    const slug = parseNoteSlug(target);
+    if (!slug) {
+      setStatus({ state: 'error', message: '笔记地址无效，请填完整链接或唯一标识' });
+      return;
+    }
+    setStatus({ state: 'sending' });
+    try {
+      // 1) 先探测笔记是否加密。注意：解锁是会话级的，GET 返回 200 不代表本次输入的密码正确，
+      //    所以只要笔记有密码，下面就每次都强制校验一遍当前输入，绝不依赖既有会话解锁状态。
+      let res = await fetch(`/api/notes/${slug}`, { cache: 'no-store' });
+      let prev = '';
+      let hasPassword = false;
+      if (res.status === 401) {
+        hasPassword = true; // 有密码且会话未解锁
+      } else if (res.ok) {
+        const data = (await res.json()) as { content?: string; hasPassword?: boolean };
+        prev = data.content ?? '';
+        hasPassword = !!data.hasPassword; // 有密码但会话已解锁
+      } else {
+        setStatus({ state: 'error', message: '读取笔记失败' });
+        return;
+      }
+
+      // 2) 有密码的笔记：每次都校验当前输入的密码
+      if (hasPassword) {
+        if (!password) {
+          setStatus({ state: 'error', message: '该笔记已加密，请填写密码' });
+          return;
+        }
+        const authRes = await fetch(`/api/notes/${slug}/auth`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password }),
+        });
+        if (!authRes.ok) {
+          setStatus({ state: 'error', message: authRes.status === 401 ? '密码错误' : '解锁失败' });
+          return;
+        }
+        // 解锁后重新读取内容（首次 401 时拿不到，且确保是最新内容）
+        res = await fetch(`/api/notes/${slug}`, { cache: 'no-store' });
+        if (!res.ok) {
+          setStatus({ state: 'error', message: '读取笔记失败' });
+          return;
+        }
+        prev = ((await res.json()) as { content?: string }).content ?? '';
+      }
+      // 2) 末尾换行后追加下载链接
+      const next = prev.trim().length > 0 ? `${prev.replace(/\s+$/, '')}\n${url}` : url;
+      const putRes = await fetch(`/api/notes/${slug}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: next }),
+      });
+      if (!putRes.ok) {
+        const d = await putRes.json().catch(() => ({}));
+        setStatus({ state: 'error', message: d.error || '写入笔记失败' });
+        return;
+      }
+      setStatus({ state: 'done', slug });
+    } catch {
+      setStatus({ state: 'error', message: '网络错误' });
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-lg border border-neutral-200 bg-white p-5 shadow-xl dark:border-neutral-800 dark:bg-neutral-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-1 flex items-center gap-2 text-base font-semibold">
+          <NotebookPen className="h-4 w-4 text-blue-600" /> 发送到笔记
+        </div>
+        <p className="mb-4 text-xs text-neutral-500">
+          下载链接会追加到目标笔记内容的末尾（另起一行）。
+        </p>
+
+        {status.state === 'done' ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-300">
+              <Check className="h-4 w-4 shrink-0" /> 已追加到笔记
+            </div>
+            <div className="flex justify-end gap-2">
+              <a
+                href={`/notepad/${status.slug}`}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+              >
+                打开笔记
+              </a>
+              <button
+                onClick={onClose}
+                className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
+              >
+                完成
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-xs text-neutral-500">笔记地址</label>
+              <div className="relative">
+                <LinkIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+                <input
+                  autoFocus
+                  type="text"
+                  value={target}
+                  onChange={(e) => setTarget(e.target.value)}
+                  placeholder="https://…/notepad/xxxx 或 xxxx"
+                  className="w-full rounded border border-neutral-300 bg-white px-3 py-2 pl-9 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-neutral-500">密码（无密码留空）</label>
+              <div className="relative">
+                <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !sending && send()}
+                  placeholder="可选"
+                  className="w-full rounded border border-neutral-300 bg-white px-3 py-2 pl-9 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+                />
+              </div>
+            </div>
+            {status.state === 'error' && (
+              <div className="flex items-center gap-1 text-sm text-red-600">
+                <AlertCircle className="h-4 w-4" /> {status.message}
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                onClick={onClose}
+                disabled={sending}
+                className="rounded border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+              >
+                取消
+              </button>
+              <button
+                onClick={send}
+                disabled={sending || !target.trim()}
+                className="flex items-center gap-1 rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <NotebookPen className="h-4 w-4" />}
+                {sending ? '发送中…' : '发送'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** 从完整链接或裸标识里解析出笔记 slug；无效返回 null */
+function parseNoteSlug(input: string): string | null {
+  const s = input.trim();
+  if (!s) return null;
+  let candidate = s;
+  if (s.includes('/')) {
+    try {
+      const u = new URL(s.startsWith('http') ? s : `https://${s}`);
+      const parts = u.pathname.split('/').filter(Boolean);
+      candidate = parts[parts.length - 1] || '';
+    } catch {
+      const parts = s.split('/').filter(Boolean);
+      candidate = parts[parts.length - 1] || '';
+    }
+  }
+  return /^[a-zA-Z0-9_-]{3,32}$/.test(candidate) ? candidate : null;
 }
