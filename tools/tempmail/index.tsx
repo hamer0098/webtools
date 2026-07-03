@@ -246,7 +246,7 @@ export default function TempmailTool({ noteSlug: slug }: { noteSlug?: string }) 
   }
 
   return (
-    <div className="flex h-[calc(100vh-2.75rem)] flex-col md:h-screen">
+    <div className="flex h-[calc(100dvh-2.75rem)] flex-col md:h-dvh">
       <header className="flex flex-wrap items-center gap-2 border-b border-neutral-200 bg-white px-3 py-3 dark:border-neutral-800 dark:bg-neutral-950 sm:px-4">
         <Mail className="h-5 w-5 shrink-0 text-blue-600" />
         {editing ? (
@@ -259,7 +259,7 @@ export default function TempmailTool({ noteSlug: slug }: { noteSlug?: string }) 
                 if (e.key === 'Enter') saveAddress();
                 if (e.key === 'Escape') setEditing(false);
               }}
-              className="w-44 rounded border border-neutral-300 bg-white px-2 py-1 font-mono text-sm dark:border-neutral-700 dark:bg-neutral-900"
+              className="w-44 rounded border border-neutral-300 bg-white px-2 py-1 font-mono text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-900"
             />
             <span className="font-mono text-sm text-neutral-500">@{mailbox.domain}</span>
             <button

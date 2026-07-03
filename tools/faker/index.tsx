@@ -431,7 +431,7 @@ export default function FakerTool() {
             <select
               value={locale}
               onChange={(e) => setLocale(e.target.value as LocaleKey)}
-              className="rounded border border-neutral-300 bg-white px-3 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+              className="rounded border border-neutral-300 bg-white px-3 py-1.5 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
               title="语言（影响姓名/邮箱/性别等语言相关字段）"
             >
               {(Object.entries(LOCALES) as Array<[LocaleKey, (typeof LOCALES)[LocaleKey]]>).map(
@@ -445,7 +445,7 @@ export default function FakerTool() {
             <select
               value={country}
               onChange={(e) => setCountry(e.target.value as CountryKey)}
-              className="rounded border border-neutral-300 bg-white px-3 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+              className="rounded border border-neutral-300 bg-white px-3 py-1.5 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
               title="国家（影响地址/电话/身份号等国家相关字段）"
             >
               {(Object.entries(COUNTRIES) as Array<[CountryKey, (typeof COUNTRIES)[CountryKey]]>).map(
@@ -734,7 +734,7 @@ function BulkModal({
             max={200}
             value={count}
             onChange={(e) => setCount(Math.min(200, Math.max(1, parseInt(e.target.value, 10) || 1)))}
-            className="w-32 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+            className="w-32 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
           />
         </label>
         <div className="mt-3">

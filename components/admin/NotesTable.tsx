@@ -124,13 +124,13 @@ export default function NotesTable({ initialNotes }: { initialNotes: Note[] }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="搜索 slug"
-            className="w-48 rounded border border-neutral-300 bg-white py-1 pl-7 pr-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+            className="w-48 rounded border border-neutral-300 bg-white py-1 pl-7 pr-2 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
           />
         </div>
         <select
           value={encFilter}
           onChange={(e) => setEncFilter(e.target.value as EncFilter)}
-          className="rounded border border-neutral-300 bg-white px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+          className="rounded border border-neutral-300 bg-white px-2 py-1 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
         >
           <option value="all">全部</option>
           <option value="encrypted">已加密</option>

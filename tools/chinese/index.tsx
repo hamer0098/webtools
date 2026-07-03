@@ -104,7 +104,7 @@ export default function ChineseTool() {
   }, [input]);
 
   return (
-    <div className="min-h-[calc(100vh-2.75rem)] bg-neutral-50 p-4 dark:bg-neutral-950 md:min-h-screen md:p-8">
+    <div className="min-h-[calc(100dvh-2.75rem)] bg-neutral-50 p-4 dark:bg-neutral-950 md:min-h-screen md:p-8">
       <div className="mx-auto max-w-5xl">
         <div className="mb-6 flex items-center gap-2">
           <Languages className="h-6 w-6 text-blue-600" />
@@ -120,7 +120,7 @@ export default function ChineseTool() {
             onChange={(e) => setInput(e.target.value)}
             rows={5}
             placeholder={PLACEHOLDER}
-            className="w-full resize-none rounded border border-neutral-300 bg-white p-3 text-sm dark:border-neutral-700 dark:bg-neutral-900"
+            className="w-full resize-none rounded border border-neutral-300 bg-white p-3 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-900"
           />
           <div className="mt-1 text-xs text-neutral-500">{input.length} 字符</div>
         </div>

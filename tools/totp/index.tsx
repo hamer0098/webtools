@@ -236,7 +236,7 @@ function TotpTester({ now }: { now: number }) {
           <select
             value={digits}
             onChange={(e) => setDigits(Number(e.target.value))}
-            className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+            className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
           >
             <option value={6}>6（默认）</option>
             <option value={7}>7</option>
@@ -248,7 +248,7 @@ function TotpTester({ now }: { now: number }) {
           <select
             value={period}
             onChange={(e) => setPeriod(Number(e.target.value))}
-            className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+            className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
           >
             <option value={30}>30（默认）</option>
             <option value={60}>60</option>
@@ -260,7 +260,7 @@ function TotpTester({ now }: { now: number }) {
           <select
             value={algorithm}
             onChange={(e) => setAlgorithm(e.target.value as 'SHA1' | 'SHA256' | 'SHA512')}
-            className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+            className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
           >
             <option value="SHA1">SHA1（默认）</option>
             <option value="SHA256">SHA256</option>

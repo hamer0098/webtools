@@ -99,7 +99,7 @@ export default function AuditPanel() {
         <select
           value={event}
           onChange={(e) => setEvent(e.target.value)}
-          className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+          className="rounded border border-slate-300 bg-white px-3 py-1.5 text-base md:text-sm dark:border-slate-700 dark:bg-slate-950"
         >
           {EVENT_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>

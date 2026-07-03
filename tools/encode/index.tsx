@@ -17,7 +17,7 @@ export default function EncodeTool() {
   const [tab, setTab] = useState<TabId>('base64');
 
   return (
-    <div className="min-h-[calc(100vh-2.75rem)] bg-neutral-50 p-4 dark:bg-neutral-950 md:min-h-screen md:p-8">
+    <div className="min-h-[calc(100dvh-2.75rem)] bg-neutral-50 p-4 dark:bg-neutral-950 md:min-h-screen md:p-8">
       <div className="mx-auto max-w-3xl">
         <div className="mb-6 flex items-center gap-2">
           <Code2 className="h-6 w-6 text-blue-600" />
@@ -268,7 +268,7 @@ function TimestampPanel() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="例：1735660800 或 2025-12-31T18:00:00Z"
-          className="w-full rounded border border-neutral-300 bg-white px-3 py-2 font-mono text-sm dark:border-neutral-700 dark:bg-neutral-900"
+          className="w-full rounded border border-neutral-300 bg-white px-3 py-2 font-mono text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-900"
         />
       </div>
 

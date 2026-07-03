@@ -318,7 +318,7 @@ export default function SendAdminClient({
               value={newCode}
               onChange={(e) => setNewCode(e.target.value)}
               placeholder="留空自动生成；或自定义 4-64 位字母数字"
-              className="w-full rounded border border-neutral-300 bg-white px-3 py-1.5 font-mono text-sm dark:border-neutral-700 dark:bg-neutral-950"
+              className="w-full rounded border border-neutral-300 bg-white px-3 py-1.5 font-mono text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
             />
             {newKind === 'onetime' && (
               <label className="flex items-center gap-2 text-sm">
@@ -329,7 +329,7 @@ export default function SendAdminClient({
                   max={9999}
                   value={newMaxUses}
                   onChange={(e) => setNewMaxUses(Math.max(1, Number(e.target.value) || 1))}
-                  className="w-24 rounded border border-neutral-300 bg-white px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+                  className="w-24 rounded border border-neutral-300 bg-white px-2 py-1 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
                 />
                 <span className="text-xs text-neutral-500">次</span>
               </label>
@@ -342,12 +342,12 @@ export default function SendAdminClient({
                 value={newTtlValue}
                 onChange={(e) => setNewTtlValue(e.target.value)}
                 placeholder="留空默认 3 天"
-                className="w-32 rounded border border-neutral-300 bg-white px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+                className="w-32 rounded border border-neutral-300 bg-white px-2 py-1 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
               />
               <select
                 value={newTtlUnit}
                 onChange={(e) => setNewTtlUnit(e.target.value as TtlUnit)}
-                className="rounded border border-neutral-300 bg-white px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+                className="rounded border border-neutral-300 bg-white px-2 py-1 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
               >
                 {(Object.keys(TTL_UNITS) as TtlUnit[]).map((u) => (
                   <option key={u} value={u}>
@@ -366,7 +366,7 @@ export default function SendAdminClient({
                 value={newMaxFileMb}
                 onChange={(e) => setNewMaxFileMb(e.target.value)}
                 placeholder={`留空默认 ${DEFAULT_MAX_FILE_MB}MB`}
-                className="w-32 rounded border border-neutral-300 bg-white px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+                className="w-32 rounded border border-neutral-300 bg-white px-2 py-1 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
               />
               <span className="text-xs text-neutral-500">MB（最大 {MAX_FILE_MB_CAP}）</span>
             </label>
@@ -374,7 +374,7 @@ export default function SendAdminClient({
               value={newNote}
               onChange={(e) => setNewNote(e.target.value)}
               placeholder="备注（可选，例如给谁用的）"
-              className="w-full rounded border border-neutral-300 bg-white px-3 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+              className="w-full rounded border border-neutral-300 bg-white px-3 py-1.5 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
             />
             <div className="flex justify-end gap-2">
               <button
@@ -514,13 +514,13 @@ export default function SendAdminClient({
                 value={fileQuery}
                 onChange={(e) => setFileQuery(e.target.value)}
                 placeholder="搜索 ID 或 IP"
-                className="w-48 rounded border border-neutral-300 bg-white py-1 pl-7 pr-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+                className="w-48 rounded border border-neutral-300 bg-white py-1 pl-7 pr-2 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
               />
             </div>
             <select
               value={fileStatus}
               onChange={(e) => setFileStatus(e.target.value as FileStatusFilter)}
-              className="rounded border border-neutral-300 bg-white px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+              className="rounded border border-neutral-300 bg-white px-2 py-1 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
             >
               <option value="all">全部状态</option>
               <option value="pending">待下载</option>

@@ -72,7 +72,7 @@ export default function ToolsTable({ initialTools }: { initialTools: Tool[] }) {
                 <input
                   value={t.name}
                   onChange={(e) => update(t.slug, { name: e.target.value })}
-                  className="w-full rounded border border-neutral-300 bg-white px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+                  className="w-full rounded border border-neutral-300 bg-white px-2 py-1 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
                 />
               </td>
               <td className="px-3 py-2">
@@ -80,14 +80,14 @@ export default function ToolsTable({ initialTools }: { initialTools: Tool[] }) {
                   value={t.icon || ''}
                   placeholder="shield-check"
                   onChange={(e) => update(t.slug, { icon: e.target.value })}
-                  className="w-32 rounded border border-neutral-300 bg-white px-2 py-1 font-mono text-xs dark:border-neutral-700 dark:bg-neutral-950"
+                  className="w-32 rounded border border-neutral-300 bg-white px-2 py-1 font-mono text-base md:text-xs dark:border-neutral-700 dark:bg-neutral-950"
                 />
               </td>
               <td className="px-3 py-2">
                 <input
                   value={t.group_name || ''}
                   onChange={(e) => update(t.slug, { group_name: e.target.value })}
-                  className="w-24 rounded border border-neutral-300 bg-white px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+                  className="w-24 rounded border border-neutral-300 bg-white px-2 py-1 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
                 />
               </td>
               <td className="px-3 py-2">
@@ -97,7 +97,7 @@ export default function ToolsTable({ initialTools }: { initialTools: Tool[] }) {
                   onChange={(e) =>
                     update(t.slug, { sort_order: Number(e.target.value) || 0 })
                   }
-                  className="w-16 rounded border border-neutral-300 bg-white px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+                  className="w-16 rounded border border-neutral-300 bg-white px-2 py-1 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
                 />
               </td>
               <td className="px-3 py-2">

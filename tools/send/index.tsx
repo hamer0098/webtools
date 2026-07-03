@@ -126,7 +126,7 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
               value={code}
               onChange={(e) => setCode(e.target.value)}
               placeholder="密码 / 邀请码"
-              className="w-full rounded border border-neutral-300 bg-white px-3 py-2 pl-9 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+              className="w-full rounded border border-neutral-300 bg-white px-3 py-2 pl-9 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
             />
           </div>
           {error && (
@@ -656,7 +656,7 @@ function SendToNoteModal({ url, onClose }: { url: string; onClose: () => void })
                   value={target}
                   onChange={(e) => setTarget(e.target.value)}
                   placeholder="https://…/notepad/xxxx 或 xxxx"
-                  className="w-full rounded border border-neutral-300 bg-white px-3 py-2 pl-9 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+                  className="w-full rounded border border-neutral-300 bg-white px-3 py-2 pl-9 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
                 />
               </div>
             </div>
@@ -670,7 +670,7 @@ function SendToNoteModal({ url, onClose }: { url: string; onClose: () => void })
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && !sending && send()}
                   placeholder="可选"
-                  className="w-full rounded border border-neutral-300 bg-white px-3 py-2 pl-9 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+                  className="w-full rounded border border-neutral-300 bg-white px-3 py-2 pl-9 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
                 />
               </div>
             </div>

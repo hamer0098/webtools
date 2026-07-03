@@ -338,7 +338,7 @@ function Input({
         value={value}
         autoComplete={autoComplete}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full max-w-sm rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
+        className="w-full max-w-sm rounded border border-slate-300 bg-white px-3 py-2 text-base md:text-sm dark:border-slate-700 dark:bg-slate-950"
       />
     </label>
   );

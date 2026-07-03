@@ -132,7 +132,7 @@ export default function NotepadTool({ noteSlug }: { noteSlug?: string }) {
   }
 
   return (
-    <div className="flex h-[calc(100vh-2.75rem)] flex-col md:h-screen">
+    <div className="flex h-[calc(100dvh-2.75rem)] flex-col md:h-dvh">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 px-3 py-2 text-sm dark:border-neutral-800 sm:px-4">
         <div className="flex items-center gap-2">
           <LinkIcon className="h-4 w-4 text-neutral-400" />
@@ -166,7 +166,7 @@ export default function NotepadTool({ noteSlug }: { noteSlug?: string }) {
           scheduleSave(e.target.value);
         }}
         placeholder="开始输入… 内容会自动保存"
-        className="flex-1 resize-none bg-white p-4 font-mono text-sm outline-none dark:bg-neutral-950"
+        className="flex-1 resize-none bg-white p-4 font-mono text-base outline-none dark:bg-neutral-950 md:text-sm"
       />
       {showPwd && (
         <PasswordSettings
@@ -269,7 +269,7 @@ function PasswordPrompt({
           type="password"
           value={pwd}
           onChange={(e) => setPwd(e.target.value)}
-          className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+          className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-base dark:border-neutral-700 dark:bg-neutral-950 md:text-sm"
           placeholder="密码"
         />
         {error && <div className="text-sm text-red-600">{error}</div>}
@@ -348,7 +348,7 @@ function PasswordSettings({
           value={pwd}
           onChange={(e) => setPwd(e.target.value)}
           placeholder="新密码"
-          className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+          className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-base dark:border-neutral-700 dark:bg-neutral-950 md:text-sm"
         />
         {error && <div className="mt-2 text-sm text-red-600">{error}</div>}
         <div className="mt-4 flex justify-end gap-2">
