@@ -24,6 +24,11 @@ export const TOOLS_META = {
     defaultIcon: 'mail',
     defaultGroup: '匿名',
   },
+  archive: {
+    defaultName: '收藏箱',
+    defaultIcon: 'archive',
+    defaultGroup: '私人',
+  },
   faker: {
     defaultName: '身份生成',
     defaultIcon: 'user-round',

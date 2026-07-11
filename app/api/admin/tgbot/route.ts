@@ -31,6 +31,8 @@ export async function POST(req: Request) {
     allowedUserIds?: string;
     /** 文件保留时长（毫秒）；null/undefined → 全局默认 */
     fileTtlMs?: number | null;
+    /** 'send'（默认）= 转发文件→匿名文件；'archive' = 收藏箱入口 */
+    purpose?: string;
   };
   const name = body?.name?.trim();
   const token = body?.token?.trim();
@@ -66,9 +68,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'token 无效（getMe 失败），请检查是否复制完整' }, { status: 400 });
   }
 
+  const purpose = body?.purpose === 'archive' ? ('archive' as const) : ('send' as const);
+
   let bot: TgBotRow;
   try {
-    bot = createBot({ name, token, username, allowed_user_ids: allowedUserIds, file_ttl_ms: fileTtlMs });
+    bot = createBot({ name, token, username, allowed_user_ids: allowedUserIds, file_ttl_ms: fileTtlMs, purpose });
   } catch (e: unknown) {
     if (e && typeof e === 'object' && 'code' in e && (e as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') {
       return NextResponse.json({ error: '该 token 已绑定过' }, { status: 409 });
@@ -86,6 +90,6 @@ export async function POST(req: Request) {
     webhookError = e instanceof Error ? e.message : 'setWebhook 失败';
   }
 
-  logEvent(AUDIT_EVENTS.TGBOT_CREATE, req, { id: bot.id, name, username, webhookOk: !webhookError });
+  logEvent(AUDIT_EVENTS.TGBOT_CREATE, req, { id: bot.id, name, username, purpose, webhookOk: !webhookError });
   return NextResponse.json({ bot: serializeBot(bot), webhookError });
 }

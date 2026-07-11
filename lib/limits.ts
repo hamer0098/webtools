@@ -37,6 +37,31 @@ export const TGBOT_LIMITS = {
   MAX_TG_FILE_BYTES: 20 * 1024 * 1024,
 };
 
+// ---------- 收藏箱 ----------
+
+export const ARCHIVE_LIMITS = {
+  /** 文字片段最大字节数 */
+  MAX_TEXT_BYTES: 256 * 1024, // 256KB
+  /** 一条消息里最多收多少个 URL（防误发一大坨链接刷库） */
+  MAX_URLS_PER_MESSAGE: 5,
+  /** 一次性解锁码有效期 */
+  OTP_TTL_MS: 5 * 60_000,
+  /** 解锁成功后授权有效期（写在 iron-session 里，session 本身 ttl 7 天） */
+  UNLOCK_TTL_MS: 7 * 24 * 60 * 60_000,
+  /** 快照：页面 HTML 最大字节数（超出判失败，不截断） */
+  SNAPSHOT_MAX_HTML_BYTES: 8 * 1024 * 1024,
+  /** 快照：单张图片最大字节数（超出跳过该图，保留远程 URL） */
+  SNAPSHOT_MAX_IMAGE_BYTES: 10 * 1024 * 1024,
+  /** 快照：最多内联多少张图片 */
+  SNAPSHOT_MAX_IMAGES: 120,
+  /** 快照：内联资源总预算（图片 + CSS），超出后剩余资源保留远程 URL */
+  SNAPSHOT_MAX_TOTAL_BYTES: 80 * 1024 * 1024,
+  /** 快照：单个资源请求超时 */
+  SNAPSHOT_FETCH_TIMEOUT_MS: 20_000,
+  /** 列表接口单页条数 */
+  PAGE_SIZE: 50,
+};
+
 // ---------- 临时邮箱 ----------
 
 export const TEMPMAIL_LIMITS = {
@@ -78,4 +103,8 @@ export const RATE_LIMITS = {
   TRANSLATE: { max: 30, windowMs: 60_000 },
   /** TG webhook：每 IP 120 次 / 分钟（来源是 Telegram 服务器） */
   TGBOT_WEBHOOK: { max: 120, windowMs: 60_000 },
+  /** 收藏箱解锁码尝试：每 IP 10 次 / 15 分钟 */
+  ARCHIVE_UNLOCK: { max: 10, windowMs: 15 * 60_000 },
+  /** 收藏箱列表/详情：每 IP 120 次 / 分钟 */
+  ARCHIVE_LIST: { max: 120, windowMs: 60_000 },
 };

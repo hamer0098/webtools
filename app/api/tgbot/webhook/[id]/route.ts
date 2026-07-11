@@ -53,6 +53,13 @@ export async function POST(req: Request, { params }: Params) {
     });
   } else if (result.action === 'reject_user') {
     logEvent(AUDIT_EVENTS.TGBOT_REJECT, req, { botId, reason: 'user_not_allowed', fromId: result.fromId });
+  } else if (result.action === 'archived') {
+    logEvent(AUDIT_EVENTS.ARCHIVE_CREATE, req, {
+      botId,
+      itemId: result.itemId,
+      type: result.itemType,
+      title: result.title,
+    });
   }
 
   maybeCleanup();

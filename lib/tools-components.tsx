@@ -13,6 +13,7 @@ export const TOOLS_COMPONENTS: Record<ToolSlug, ComponentType<{ noteSlug?: strin
   notepad: dynamic(() => import('@/tools/notepad'), { loading: Loading }),
   send: dynamic(() => import('@/tools/send'), { loading: Loading }),
   tempmail: dynamic(() => import('@/tools/tempmail'), { loading: Loading }),
+  archive: dynamic(() => import('@/tools/archive'), { loading: Loading }),
   faker: dynamic(() => import('@/tools/faker'), { loading: Loading }),
   password: dynamic(() => import('@/tools/password'), { loading: Loading }),
   qrcode: dynamic(() => import('@/tools/qrcode'), { loading: Loading }),

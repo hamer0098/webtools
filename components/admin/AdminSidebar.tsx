@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
-import { LayoutDashboard, Wrench, NotebookPen, FileLock2, Mail, Bot, ShieldCheck, ScrollText } from 'lucide-react';
+import { LayoutDashboard, Wrench, NotebookPen, FileLock2, Mail, Bot, Archive, ShieldCheck, ScrollText } from 'lucide-react';
 
 const ITEMS = [
   { href: '/admin', label: '概览', icon: LayoutDashboard, exact: true },
@@ -12,6 +12,7 @@ const ITEMS = [
   { href: '/admin/send', label: '匿名文件', icon: FileLock2 },
   { href: '/admin/tempmail', label: '临时邮箱', icon: Mail },
   { href: '/admin/tgbot', label: 'TG 机器人', icon: Bot },
+  { href: '/admin/archive', label: '收藏箱', icon: Archive },
   { href: '/admin/account', label: '账户与 2FA', icon: ShieldCheck },
   { href: '/admin/audit', label: '操作日志', icon: ScrollText },
 ];

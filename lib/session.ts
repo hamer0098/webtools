@@ -12,6 +12,8 @@ export type SessionData = {
     /** 授权过期时间戳；过期后必须重新输入 */
     expiresAt: number;
   };
+  /** 收藏箱解锁授权（TG 一次性码 / TOTP 验证通过）：过期时间戳 */
+  archiveUnlockedUntil?: number;
 };
 
 export const sessionOptions: SessionOptions = {

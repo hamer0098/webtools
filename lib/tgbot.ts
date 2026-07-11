@@ -16,7 +16,15 @@ import path from 'node:path';
 import { nanoid } from 'nanoid';
 import { getDb } from './db';
 import { insertFile, getUploadsDir, deleteFileFromDisk } from './send';
-import { SEND_LIMITS, TGBOT_LIMITS } from './limits';
+import { ARCHIVE_LIMITS, SEND_LIMITS, TGBOT_LIMITS } from './limits';
+import {
+  createFileItem,
+  createTextItem,
+  createUrlItem,
+  getItem as getArchiveItem,
+  issueOtp,
+  snapshotUrl,
+} from './archive';
 
 const subtle = crypto.webcrypto.subtle;
 
@@ -29,8 +37,10 @@ export type TgBotRow = {
   /** 逗号分隔的 TG 用户 ID 白名单；空/NULL = 拒绝所有 */
   allowed_user_ids: string | null;
   webhook_secret: string;
-  /** 该 bot 上传文件的保留时长（毫秒）；NULL → 全局默认 */
+  /** 该 bot 上传文件的保留时长（毫秒）；NULL → 全局默认。仅 purpose='send' 用 */
   file_ttl_ms: number | null;
+  /** 'send' = 转发文件→匿名文件；'archive' = 收藏箱入口 */
+  purpose: 'send' | 'archive';
   webhook_set_at: number | null;
   last_used_at: number | null;
   created_at: number;
@@ -52,11 +62,12 @@ export function createBot(row: {
   username: string | null;
   allowed_user_ids: string | null;
   file_ttl_ms: number | null;
+  purpose: 'send' | 'archive';
 }): TgBotRow {
   const r = getDb()
     .prepare(
-      `INSERT INTO tg_bots (name, token, username, allowed_user_ids, webhook_secret, file_ttl_ms, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO tg_bots (name, token, username, allowed_user_ids, webhook_secret, file_ttl_ms, purpose, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       row.name,
@@ -65,6 +76,7 @@ export function createBot(row: {
       row.allowed_user_ids,
       nanoid(32),
       row.file_ttl_ms,
+      row.purpose,
       Date.now(),
     );
   return getBot(Number(r.lastInsertRowid))!;
@@ -99,6 +111,7 @@ export function serializeBot(b: TgBotRow) {
     tokenMasked: maskToken(b.token),
     username: b.username,
     enabled: !!b.enabled,
+    purpose: b.purpose,
     allowedUserIds: b.allowed_user_ids || '',
     fileTtlMs: b.file_ttl_ms,
     webhookSetAt: b.webhook_set_at,
@@ -145,7 +158,8 @@ export async function tgSetWebhook(bot: TgBotRow, baseUrl: string): Promise<void
   await tgApi(bot.token, 'setWebhook', {
     url: `${baseUrl}/api/tgbot/webhook/${bot.id}`,
     secret_token: bot.webhook_secret,
-    allowed_updates: ['message'],
+    // callback_query：收藏 bot 的「离线保存全文」内联按钮回调；send bot 用不到但无害
+    allowed_updates: ['message', 'callback_query'],
   });
 }
 
@@ -153,13 +167,29 @@ export async function tgDeleteWebhook(token: string): Promise<void> {
   await tgApi(token, 'deleteWebhook');
 }
 
-async function tgSendMessage(token: string, chatId: number, text: string, replyTo?: number) {
+type TgInlineKeyboard = { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+
+async function tgSendMessage(
+  token: string,
+  chatId: number,
+  text: string,
+  replyTo?: number,
+  replyMarkup?: TgInlineKeyboard,
+) {
   await tgApi(token, 'sendMessage', {
     chat_id: chatId,
     text,
     // 引用触发消息，多文件连发时能对上号；被引用消息删了也不失败
     ...(replyTo ? { reply_parameters: { message_id: replyTo, allow_sending_without_reply: true } } : {}),
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
   });
+}
+
+/** 应答内联按钮点击（消掉客户端的加载态；text 会以 toast 显示） */
+async function tgAnswerCallbackQuery(token: string, callbackQueryId: string, text?: string) {
+  await tgApi(token, 'answerCallbackQuery', { callback_query_id: callbackQueryId, ...(text ? { text } : {}) }).catch(
+    (e) => console.error('[tgbot] answerCallbackQuery failed', e),
+  );
 }
 
 async function tgDownloadFile(token: string, fileId: string): Promise<Buffer> {
@@ -256,6 +286,8 @@ type TgMessage = {
   from?: { id: number; username?: string; first_name?: string };
   chat?: { id: number; type: string };
   text?: string;
+  /** 媒体消息附带的文字说明（收藏 bot 用它当备注） */
+  caption?: string;
   document?: { file_id: string; file_name?: string; mime_type?: string; file_size?: number };
   photo?: Array<{ file_id: string; file_size?: number }>;
   video?: { file_id: string; file_name?: string; mime_type?: string; file_size?: number };
@@ -266,7 +298,14 @@ type TgMessage = {
   sticker?: { file_id: string; file_size?: number; is_animated?: boolean; is_video?: boolean };
 };
 
-export type TgUpdate = { update_id?: number; message?: TgMessage };
+type TgCallbackQuery = {
+  id: string;
+  from?: { id: number };
+  message?: { message_id: number; chat?: { id: number } };
+  data?: string;
+};
+
+export type TgUpdate = { update_id?: number; message?: TgMessage; callback_query?: TgCallbackQuery };
 
 type IncomingFile = { fileId: string; size: number | null; name: string; mime: string };
 
@@ -340,13 +379,35 @@ export type TgHandleResult =
   | { action: 'reject_user'; fromId: number | null }
   | { action: 'too_big'; size: number }
   | { action: 'error'; reason: string }
-  | { action: 'uploaded'; id: string; size: number; name: string };
+  | { action: 'uploaded'; id: string; size: number; name: string }
+  | { action: 'archived'; itemId: string; itemType: string; title: string }
+  | { action: 'otp_issued' }
+  | { action: 'snapshot_requested'; itemId: string };
+
+/** 白名单校验：不在名单返回 false */
+function isAllowedUser(bot: TgBotRow, fromId: number | null): boolean {
+  const allowed = (bot.allowed_user_ids || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return fromId != null && allowed.includes(String(fromId));
+}
 
 /**
- * 处理一条 webhook update。所有分支都会给用户回消息（能回的话），
- * 返回值只用于审计日志；不抛错（内部兜底），调用方始终回 TG 200。
+ * 处理一条 webhook update，按 bot 用途分发（send=匿名文件桥 / archive=收藏箱）。
+ * 所有分支都会给用户回消息（能回的话），返回值只用于审计日志；
+ * 不抛错（内部兜底），调用方始终回 TG 200。
  */
 export async function handleTgUpdate(
+  bot: TgBotRow,
+  update: TgUpdate,
+  baseUrl: string,
+): Promise<TgHandleResult> {
+  if (bot.purpose === 'archive') return handleArchiveUpdate(bot, update, baseUrl);
+  return handleSendUpdate(bot, update, baseUrl);
+}
+
+async function handleSendUpdate(
   bot: TgBotRow,
   update: TgUpdate,
   baseUrl: string,
@@ -361,11 +422,7 @@ export async function handleTgUpdate(
 
   // 白名单：不在名单里就把对方的用户 ID 报出来，方便去后台加白
   const fromId = msg.from?.id ?? null;
-  const allowed = (bot.allowed_user_ids || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (fromId == null || !allowed.includes(String(fromId))) {
+  if (!isAllowedUser(bot, fromId)) {
     await reply(
       `⛔ 未授权使用。\n你的 Telegram 用户 ID：${fromId ?? '未知'}\n请在后台「TG 机器人」把这个 ID 加进白名单后重试。`,
     );
@@ -408,4 +465,146 @@ export async function handleTgUpdate(
     await reply('⚠️ 处理失败，请稍后重试。');
     return { action: 'error', reason: e instanceof Error ? e.message : 'unknown' };
   }
+}
+
+// ---------- 收藏箱分支（purpose='archive'） ----------
+
+const URL_RE = /https?:\/\/[^\s<>"'）)】\]]+/g;
+
+/**
+ * 收藏 bot：文件→存档（caption 当备注）、含链接的文字→存链接并给「离线保存全文」
+ * 按钮、纯文字→存片段、/code→签发前台一次性解锁码。
+ */
+async function handleArchiveUpdate(
+  bot: TgBotRow,
+  update: TgUpdate,
+  baseUrl: string,
+): Promise<TgHandleResult> {
+  // 内联按钮回调：触发 URL 全文快照
+  const cb = update.callback_query;
+  if (cb) {
+    const cbFromId = cb.from?.id ?? null;
+    if (!isAllowedUser(bot, cbFromId)) {
+      await tgAnswerCallbackQuery(bot.token, cb.id, '未授权');
+      return { action: 'reject_user', fromId: cbFromId };
+    }
+    const itemId = cb.data?.match(/^snap:(.+)$/)?.[1];
+    const cbChatId = cb.message?.chat?.id;
+    if (!itemId || !cbChatId) {
+      await tgAnswerCallbackQuery(bot.token, cb.id);
+      return { action: 'ignored' };
+    }
+    if (!getArchiveItem(itemId)) {
+      await tgAnswerCallbackQuery(bot.token, cb.id, '条目不存在（可能已被删除）');
+      return { action: 'ignored' };
+    }
+    await tgAnswerCallbackQuery(bot.token, cb.id, '开始抓取…');
+    // 抓取可能要几十秒（逐图下载内联），不阻塞 webhook 响应；跑完再发结果消息。
+    // 常驻 node 进程（Docker standalone），fire-and-forget 安全
+    void snapshotUrl(itemId)
+      .then((r) =>
+        tgSendMessage(
+          bot.token,
+          cbChatId,
+          r.ok
+            ? `📥 已离线保存全文：${getArchiveItem(itemId)?.title || ''}\n查看：${baseUrl}/archive`
+            : `⚠️ 全文抓取失败：${r.error}\n可回到原消息再点一次按钮重试。`,
+          cb.message?.message_id,
+        ),
+      )
+      .catch((e) => console.error('[tgbot] snapshot task failed', e));
+    touchBotUsed(bot.id);
+    return { action: 'snapshot_requested', itemId };
+  }
+
+  const msg = update.message;
+  if (!msg?.chat) return { action: 'ignored' };
+  const chatId = msg.chat.id;
+  const reply = (text: string, markup?: TgInlineKeyboard) =>
+    tgSendMessage(bot.token, chatId, text, msg.message_id, markup).catch((e) =>
+      console.error('[tgbot] reply failed', e),
+    );
+
+  const fromId = msg.from?.id ?? null;
+  if (!isAllowedUser(bot, fromId)) {
+    await reply(
+      `⛔ 未授权使用。\n你的 Telegram 用户 ID：${fromId ?? '未知'}\n请在后台「TG 机器人」把这个 ID 加进白名单后重试。`,
+    );
+    return { action: 'reject_user', fromId };
+  }
+
+  const source = `tgbot:${bot.id}`;
+  const text = msg.text?.trim();
+
+  if (text === '/code') {
+    const { code } = issueOtp();
+    await reply(`🔑 一次性解锁码：${code}\n\n5 分钟内在 ${baseUrl}/archive 输入即可解锁（用一次作废，解锁后 7 天有效）。`);
+    return { action: 'otp_issued' };
+  }
+  if (text === '/start' || text === '/help') {
+    await reply(
+      '这是你的收藏箱 bot：\n\n' +
+        '📄 发/转发文件（≤20MB）→ 永久存档，caption 会作为备注\n' +
+        '🔗 发链接 → 收藏网址，可一键离线保存全文（含配图）\n' +
+        '📝 发文字 → 收藏文字片段\n\n' +
+        `查看：${baseUrl}/archive\n/code 获取网页解锁码`,
+    );
+    return { action: 'ignored' };
+  }
+
+  // 文件（转发的文档/图片/视频等）
+  const file = extractIncomingFile(msg);
+  if (file) {
+    if (file.size && file.size > TGBOT_LIMITS.MAX_TG_FILE_BYTES) {
+      await reply(`⚠️ 文件太大（${fmtSize(file.size)}）。Telegram 只允许机器人下载 ≤20MB 的文件。`);
+      return { action: 'too_big', size: file.size };
+    }
+    try {
+      const data = await tgDownloadFile(bot.token, file.fileId);
+      const note = msg.caption?.trim() || null;
+      const item = createFileItem({ data, name: file.name, mime: file.mime, note, source });
+      touchBotUsed(bot.id);
+      await reply(
+        `✅ 已收藏文件：${file.name}（${fmtSize(data.length)}）${note ? `\n备注：${note}` : ''}\n\n查看：${baseUrl}/archive`,
+      );
+      return { action: 'archived', itemId: item.id, itemType: 'file', title: item.title };
+    } catch (e) {
+      console.error('[tgbot] archive file failed', e);
+      await reply('⚠️ 收藏失败，请稍后重试。');
+      return { action: 'error', reason: e instanceof Error ? e.message : 'unknown' };
+    }
+  }
+
+  if (text) {
+    if (Buffer.byteLength(text, 'utf8') > ARCHIVE_LIMITS.MAX_TEXT_BYTES) {
+      await reply('⚠️ 文字太长（超过 256KB），请拆分或转成文件发送。');
+      return { action: 'error', reason: 'text too long' };
+    }
+    const urls = [...new Set(text.match(URL_RE) || [])];
+    if (urls.length) {
+      // URL 之外的文字自动当备注；多条链接共享同一备注
+      const note = text.replace(URL_RE, '').replace(/\s+/g, ' ').trim() || null;
+      const picked = urls.slice(0, ARCHIVE_LIMITS.MAX_URLS_PER_MESSAGE);
+      let last: { id: string; title: string } | null = null;
+      for (const url of picked) {
+        const item = createUrlItem({ url, note, source });
+        last = item;
+        await reply(`🔗 已存链接${note ? `（备注：${note}）` : ''}\n${url}\n\n怕原文被删就点下面离线保存：`, {
+          inline_keyboard: [[{ text: '📥 离线保存全文（含配图）', callback_data: `snap:${item.id}` }]],
+        });
+      }
+      if (urls.length > picked.length) {
+        await reply(`⚠️ 一条消息最多收 ${ARCHIVE_LIMITS.MAX_URLS_PER_MESSAGE} 个链接，多出的 ${urls.length - picked.length} 个已忽略。`);
+      }
+      touchBotUsed(bot.id);
+      return { action: 'archived', itemId: last!.id, itemType: 'url', title: last!.title };
+    }
+    const item = createTextItem({ text, source });
+    touchBotUsed(bot.id);
+    await reply(`📝 已收藏文字片段：${item.title}\n\n查看：${baseUrl}/archive`);
+    return { action: 'archived', itemId: item.id, itemType: 'text', title: item.title };
+  }
+
+  await reply('发我文件 / 链接 / 文字即可收藏；/code 获取网页解锁码。');
+  return { action: 'no_file' };
 }

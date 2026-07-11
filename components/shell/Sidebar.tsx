@@ -67,7 +67,7 @@ export default function Sidebar({
       map.get(key)!.push(t);
     }
     // 固定分组顺序，未列出的分组排在末尾
-    const order = ['安全', '匿名', '生成', '工具'];
+    const order = ['安全', '匿名', '私人', '生成', '工具'];
     const rank = (g: string) => {
       const i = order.indexOf(g);
       return i === -1 ? 99 : i;

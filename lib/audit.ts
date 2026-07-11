@@ -70,4 +70,12 @@ export const AUDIT_EVENTS = {
   TGBOT_DELETE: 'tgbot.delete',
   TGBOT_UPLOAD: 'tgbot.upload',
   TGBOT_REJECT: 'tgbot.reject',
+  ARCHIVE_CREATE: 'archive.create',
+  ARCHIVE_UPDATE: 'archive.update',
+  ARCHIVE_DELETE: 'archive.delete',
+  ARCHIVE_EXPORT: 'archive.export',
+  ARCHIVE_UNLOCK_OK: 'archive.unlock.ok',
+  ARCHIVE_UNLOCK_FAIL: 'archive.unlock.fail',
+  ARCHIVE_SNAPSHOT_OK: 'archive.snapshot.ok',
+  ARCHIVE_SNAPSHOT_FAIL: 'archive.snapshot.fail',
 } as const;

@@ -18,6 +18,7 @@ export default function TgbotAdminClient({ initialBots }: { initialBots: TgBotDt
   const [token, setToken] = useState('');
   const [allowedIds, setAllowedIds] = useState('');
   const [ttlDays, setTtlDays] = useState('');
+  const [purpose, setPurpose] = useState<'send' | 'archive'>('send');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,7 +33,7 @@ export default function TgbotAdminClient({ initialBots }: { initialBots: TgBotDt
       const r = await fetch('/api/admin/tgbot', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name, token, allowedUserIds: allowedIds, fileTtlMs }),
+        body: JSON.stringify({ name, token, allowedUserIds: allowedIds, fileTtlMs, purpose }),
       });
       const data = await r.json();
       if (!r.ok) {
@@ -112,6 +113,27 @@ export default function TgbotAdminClient({ initialBots }: { initialBots: TgBotDt
       {showForm && (
         <div className="mb-4 space-y-3 rounded border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950">
           <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-sm sm:col-span-2">
+              <span className="mb-1 block text-neutral-500">用途</span>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="radio"
+                    checked={purpose === 'send'}
+                    onChange={() => setPurpose('send')}
+                  />
+                  匿名文件（发文件 → 一次性下载链接）
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="radio"
+                    checked={purpose === 'archive'}
+                    onChange={() => setPurpose('archive')}
+                  />
+                  收藏箱（发文件/链接/文字 → 永久收藏）
+                </label>
+              </div>
+            </label>
             <label className="block text-sm">
               <span className="mb-1 block text-neutral-500">名称（备注用）</span>
               <input
@@ -141,18 +163,20 @@ export default function TgbotAdminClient({ initialBots }: { initialBots: TgBotDt
                 className="w-full rounded border border-neutral-300 bg-white px-2 py-1.5 font-mono text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
               />
             </label>
-            <label className="block text-sm">
-              <span className="mb-1 block text-neutral-500">文件保留天数（留空=默认 3 天）</span>
-              <input
-                value={ttlDays}
-                onChange={(e) => setTtlDays(e.target.value)}
-                type="number"
-                min={1}
-                max={90}
-                placeholder="3"
-                className="w-full rounded border border-neutral-300 bg-white px-2 py-1.5 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
-              />
-            </label>
+            {purpose === 'send' && (
+              <label className="block text-sm">
+                <span className="mb-1 block text-neutral-500">文件保留天数（留空=默认 3 天）</span>
+                <input
+                  value={ttlDays}
+                  onChange={(e) => setTtlDays(e.target.value)}
+                  type="number"
+                  min={1}
+                  max={90}
+                  placeholder="3"
+                  className="w-full rounded border border-neutral-300 bg-white px-2 py-1.5 text-base md:text-sm dark:border-neutral-700 dark:bg-neutral-950"
+                />
+              </label>
+            )}
           </div>
           {error && <div className="text-sm text-red-600">{error}</div>}
           <button
@@ -170,6 +194,7 @@ export default function TgbotAdminClient({ initialBots }: { initialBots: TgBotDt
           <thead className="bg-neutral-100 text-left text-xs uppercase text-neutral-500 dark:bg-neutral-800">
             <tr>
               <th className="px-3 py-2">名称</th>
+              <th className="px-3 py-2">用途</th>
               <th className="px-3 py-2">Bot</th>
               <th className="px-3 py-2">白名单</th>
               <th className="px-3 py-2">Webhook</th>
@@ -182,6 +207,17 @@ export default function TgbotAdminClient({ initialBots }: { initialBots: TgBotDt
             {bots.map((bot) => (
               <tr key={bot.id} className="border-t border-neutral-200 dark:border-neutral-800">
                 <td className="px-3 py-2">{bot.name}</td>
+                <td className="px-3 py-2 text-xs">
+                  {bot.purpose === 'archive' ? (
+                    <span className="rounded bg-purple-100 px-2 py-0.5 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+                      收藏箱
+                    </span>
+                  ) : (
+                    <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                      匿名文件
+                    </span>
+                  )}
+                </td>
                 <td className="px-3 py-2 font-mono text-xs">
                   {bot.username ? (
                     <a
@@ -250,7 +286,7 @@ export default function TgbotAdminClient({ initialBots }: { initialBots: TgBotDt
             ))}
             {bots.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-12 text-center text-neutral-500">
+                <td colSpan={8} className="px-3 py-12 text-center text-neutral-500">
                   还没绑定机器人。去 Telegram 找 @BotFather 发 /newbot 拿到 token，回来点上面「绑定新机器人」。
                 </td>
               </tr>
