@@ -38,6 +38,7 @@ type Item = {
   snapshotError: string | null;
   hasBlob: boolean;
   createdAt: number;
+  updatedAt: number;
 };
 
 const TYPE_TABS = [
@@ -448,10 +449,20 @@ function ItemDetail({
                     <a href={blobUrl} className="text-blue-600 hover:underline">
                       下载 HTML
                     </a>
+                    <button
+                      onClick={triggerSnapshot}
+                      disabled={snapBusy}
+                      className="inline-flex items-center gap-1 text-blue-600 hover:underline disabled:opacity-50"
+                    >
+                      {snapBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                      重新抓取
+                    </button>
                   </div>
+                  {snapError && <div className="text-xs text-red-500">{snapError}</div>}
                   <iframe
                     sandbox=""
-                    src={`${blobUrl}?inline=1`}
+                    key={item.updatedAt}
+                    src={`${blobUrl}?inline=1&v=${item.updatedAt}`}
                     className="h-[60dvh] w-full rounded border border-neutral-200 bg-white dark:border-neutral-800"
                     title="离线快照"
                   />

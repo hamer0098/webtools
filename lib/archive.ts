@@ -31,6 +31,8 @@ export type ArchiveItemRow = {
   snapshot_status: 'pending' | 'ok' | 'failed' | null;
   snapshot_error: string | null;
   source: string | null;
+  /** bot 确认消息定位符 "{chatId}:{message_id}"，TG 里回复该消息可设备注 */
+  tg_ref: string | null;
   created_at: number;
   updated_at: number;
 };
@@ -90,6 +92,16 @@ export function updateItem(id: string, patch: { title?: string; note?: string | 
       id,
     );
   return true;
+}
+
+export function setItemTgRef(id: string, ref: string): void {
+  getDb().prepare('UPDATE archive_items SET tg_ref = ? WHERE id = ?').run(ref, id);
+}
+
+export function findItemByTgRef(ref: string): ArchiveItemRow | undefined {
+  return getDb().prepare('SELECT * FROM archive_items WHERE tg_ref = ?').get(ref) as
+    | ArchiveItemRow
+    | undefined;
 }
 
 export function deleteItem(id: string): boolean {
@@ -311,6 +323,14 @@ export async function snapshotUrl(itemId: string): Promise<{ ok: boolean; error?
 
     // 去脚本：sandbox iframe 本来就不执行，但导出后本地打开也不该跑
     html = html.replace(/<script\b[\s\S]*?<\/script\s*>/gi, '').replace(/<script\b[^>]*\/>/gi, '');
+
+    // 公众号正文 #js_content 默认 visibility:hidden，靠 JS 等图片加载完才显示；
+    // 脚本被剥离后它永远隐藏 → 强制显示（对其他站点无副作用）
+    const forceShow =
+      '<style>#js_content,.rich_media_content{visibility:visible!important;opacity:1!important}</style>';
+    html = /<\/head>/i.test(html)
+      ? html.replace(/<\/head>/i, `${forceShow}</head>`)
+      : forceShow + html;
 
     let budget = ARCHIVE_LIMITS.SNAPSHOT_MAX_TOTAL_BYTES;
 

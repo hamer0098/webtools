@@ -21,9 +21,12 @@ import {
   createFileItem,
   createTextItem,
   createUrlItem,
+  findItemByTgRef,
   getItem as getArchiveItem,
   issueOtp,
+  setItemTgRef,
   snapshotUrl,
+  updateItem as updateArchiveItem,
 } from './archive';
 
 const subtle = crypto.webcrypto.subtle;
@@ -175,8 +178,8 @@ async function tgSendMessage(
   text: string,
   replyTo?: number,
   replyMarkup?: TgInlineKeyboard,
-) {
-  await tgApi(token, 'sendMessage', {
+): Promise<{ message_id: number }> {
+  return tgApi(token, 'sendMessage', {
     chat_id: chatId,
     text,
     // 回复里常带下载/查看链接，关掉链接预览卡片省屏幕
@@ -290,6 +293,8 @@ type TgMessage = {
   text?: string;
   /** 媒体消息附带的文字说明（收藏 bot 用它当备注） */
   caption?: string;
+  /** 被回复的消息；收藏 bot 用「回复确认消息」给对应条目设备注 */
+  reply_to_message?: { message_id: number };
   document?: { file_id: string; file_name?: string; mime_type?: string; file_size?: number };
   photo?: Array<{ file_id: string; file_size?: number }>;
   video?: { file_id: string; file_name?: string; mime_type?: string; file_size?: number };
@@ -522,10 +527,15 @@ async function handleArchiveUpdate(
   const msg = update.message;
   if (!msg?.chat) return { action: 'ignored' };
   const chatId = msg.chat.id;
+  // 返回已发出消息的 message_id（发送失败返回 null）—— 存进条目 tg_ref，
+  // 之后用户「回复」这条确认消息即可设置备注
   const reply = (text: string, markup?: TgInlineKeyboard) =>
-    tgSendMessage(bot.token, chatId, text, msg.message_id, markup).catch((e) =>
-      console.error('[tgbot] reply failed', e),
-    );
+    tgSendMessage(bot.token, chatId, text, msg.message_id, markup)
+      .then((m) => m.message_id)
+      .catch((e) => {
+        console.error('[tgbot] reply failed', e);
+        return null;
+      });
 
   const fromId = msg.from?.id ?? null;
   if (!isAllowedUser(bot, fromId)) {
@@ -538,6 +548,17 @@ async function handleArchiveUpdate(
   const source = `tgbot:${bot.id}`;
   const text = msg.text?.trim();
 
+  // 回复某条「✅ 已收藏」确认消息 → 把回复内容设为该条目的备注
+  if (msg.reply_to_message && text && !text.startsWith('/')) {
+    const target = findItemByTgRef(`${chatId}:${msg.reply_to_message.message_id}`);
+    if (target) {
+      updateArchiveItem(target.id, { note: text });
+      await reply(`📌 已更新备注：${text}`);
+      return { action: 'archived', itemId: target.id, itemType: 'note', title: target.title };
+    }
+    // 回复的不是确认消息（比如引用别的消息发链接）→ 按普通消息继续处理
+  }
+
   if (text === '/code') {
     const { code } = issueOtp();
     await reply(`🔑 一次性解锁码：${code}\n\n5 分钟内在 ${baseUrl}/archive 输入即可解锁（用一次作废，解锁后 7 天有效）。`);
@@ -547,8 +568,9 @@ async function handleArchiveUpdate(
     await reply(
       '这是你的收藏箱 bot：\n\n' +
         '📄 发/转发文件（≤20MB）→ 永久存档，caption 会作为备注\n' +
-        '🔗 发链接 → 收藏网址，可一键离线保存全文（含配图）\n' +
-        '📝 发文字 → 收藏文字片段\n\n' +
+        '🔗 发链接 → 收藏网址，可一键离线保存全文（含配图）；链接旁的文字自动当备注\n' +
+        '📝 发文字 → 收藏文字片段\n' +
+        '📌 回复任意一条「已收藏」确认消息 → 给那条收藏加/改备注\n\n' +
         `查看：${baseUrl}/archive\n/code 获取网页解锁码`,
     );
     return { action: 'ignored' };
@@ -566,9 +588,10 @@ async function handleArchiveUpdate(
       const note = msg.caption?.trim() || null;
       const item = createFileItem({ data, name: file.name, mime: file.mime, note, source });
       touchBotUsed(bot.id);
-      await reply(
-        `✅ 已收藏文件：${file.name}（${fmtSize(data.length)}）${note ? `\n备注：${note}` : ''}\n\n查看：${baseUrl}/archive`,
+      const mid = await reply(
+        `✅ 已收藏文件：${file.name}（${fmtSize(data.length)}）${note ? `\n备注：${note}` : ''}\n\n回复本条消息可加备注 · 查看：${baseUrl}/archive`,
       );
+      if (mid) setItemTgRef(item.id, `${chatId}:${mid}`);
       return { action: 'archived', itemId: item.id, itemType: 'file', title: item.title };
     } catch (e) {
       console.error('[tgbot] archive file failed', e);
@@ -591,9 +614,10 @@ async function handleArchiveUpdate(
       for (const url of picked) {
         const item = createUrlItem({ url, note, source });
         last = item;
-        await reply(`🔗 已存链接${note ? `（备注：${note}）` : ''}\n${url}\n\n怕原文被删就点下面离线保存：`, {
+        const mid = await reply(`🔗 已存链接${note ? `（备注：${note}）` : ''}\n${url}\n\n怕原文被删就点下面离线保存：`, {
           inline_keyboard: [[{ text: '📥 离线保存全文（含配图）', callback_data: `snap:${item.id}` }]],
         });
+        if (mid) setItemTgRef(item.id, `${chatId}:${mid}`);
       }
       if (urls.length > picked.length) {
         await reply(`⚠️ 一条消息最多收 ${ARCHIVE_LIMITS.MAX_URLS_PER_MESSAGE} 个链接，多出的 ${urls.length - picked.length} 个已忽略。`);
@@ -603,7 +627,8 @@ async function handleArchiveUpdate(
     }
     const item = createTextItem({ text, source });
     touchBotUsed(bot.id);
-    await reply(`📝 已收藏文字片段：${item.title}\n\n查看：${baseUrl}/archive`);
+    const mid = await reply(`📝 已收藏文字片段：${item.title}\n\n回复本条消息可加备注 · 查看：${baseUrl}/archive`);
+    if (mid) setItemTgRef(item.id, `${chatId}:${mid}`);
     return { action: 'archived', itemId: item.id, itemType: 'text', title: item.title };
   }
 
