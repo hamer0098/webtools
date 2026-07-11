@@ -179,6 +179,8 @@ async function tgSendMessage(
   await tgApi(token, 'sendMessage', {
     chat_id: chatId,
     text,
+    // 回复里常带下载/查看链接，关掉链接预览卡片省屏幕
+    link_preview_options: { is_disabled: true },
     // 引用触发消息，多文件连发时能对上号；被引用消息删了也不失败
     ...(replyTo ? { reply_parameters: { message_id: replyTo, allow_sending_without_reply: true } } : {}),
     ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
