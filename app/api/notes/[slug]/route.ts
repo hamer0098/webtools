@@ -28,7 +28,8 @@ export async function GET(_: Request, { params }: Params) {
 
   if (row.password_hash) {
     const session = await getSession();
-    if (!session.unlockedNotes?.includes(slug)) {
+    // admin 免密查看（后台「打开」直达）；普通访客仍需解锁
+    if (!session.admin && !session.unlockedNotes?.includes(slug)) {
       return NextResponse.json({ requirePassword: true }, { status: 401 });
     }
   }
@@ -97,10 +98,10 @@ export async function PUT(req: Request, { params }: Params) {
     | NoteRow
     | undefined;
 
-  // If note has password and caller isn't unlocked, reject write
+  // If note has password and caller isn't unlocked, reject write（admin 免密）
   if (existing?.password_hash) {
     const session = await getSession();
-    if (!session.unlockedNotes?.includes(slug)) {
+    if (!session.admin && !session.unlockedNotes?.includes(slug)) {
       return NextResponse.json({ requirePassword: true }, { status: 401 });
     }
   }
