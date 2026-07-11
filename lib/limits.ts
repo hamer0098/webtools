@@ -30,6 +30,13 @@ export const SEND_LIMITS = {
   AUTH_TTL_MS: 30 * 60_000, // 30 分钟
 };
 
+// ---------- TG 机器人 ----------
+
+export const TGBOT_LIMITS = {
+  /** Telegram Bot API getFile 的官方下载硬上限：20MB，更大的文件 bot 拿不到 */
+  MAX_TG_FILE_BYTES: 20 * 1024 * 1024,
+};
+
 // ---------- 临时邮箱 ----------
 
 export const TEMPMAIL_LIMITS = {
@@ -69,4 +76,6 @@ export const RATE_LIMITS = {
   TEMPMAIL_INBOUND: { max: 500, windowMs: 60_000 },
   /** 翻译接口：每 IP 30 次 / 分钟（前端 debounce 500ms，正常输入不会触顶） */
   TRANSLATE: { max: 30, windowMs: 60_000 },
+  /** TG webhook：每 IP 120 次 / 分钟（来源是 Telegram 服务器） */
+  TGBOT_WEBHOOK: { max: 120, windowMs: 60_000 },
 };

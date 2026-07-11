@@ -65,4 +65,9 @@ export const AUDIT_EVENTS = {
   TEMPMAIL_INBOUND_REJECT: 'tempmail.inbound.reject',
   TEMPMAIL_MESSAGE_DELETE: 'tempmail.message.delete',
   TEMPMAIL_CLEANUP: 'tempmail.cleanup',
+  TGBOT_CREATE: 'tgbot.create',
+  TGBOT_UPDATE: 'tgbot.update',
+  TGBOT_DELETE: 'tgbot.delete',
+  TGBOT_UPLOAD: 'tgbot.upload',
+  TGBOT_REJECT: 'tgbot.reject',
 } as const;
