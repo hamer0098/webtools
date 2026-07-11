@@ -21,6 +21,7 @@ import {
   createFileItem,
   createTextItem,
   createUrlItem,
+  deleteItem as deleteArchiveItem,
   findItemByTgRef,
   getItem as getArchiveItem,
   issueOtp,
@@ -479,6 +480,20 @@ async function handleSendUpdate(
 const URL_RE = /https?:\/\/[^\s<>"'）)】\]]+/g;
 
 /**
+ * 「转发 + 文字描述」配对：TG 的转发附言是独立的文字消息，与被转发的文件
+ * 先后到达（顺序不保证）。用短时间窗把同一聊天里相邻的 文字↔文件 配成
+ * 「文件 + 备注」，而不是各存一条。进程内存即可（单容器 + 窗口只有几十秒）。
+ */
+type PendingText = { itemId: string | null; text: string; at: number };
+type RecentFiles = { itemIds: string[]; at: number };
+const pendingTextByChat = new Map<string, PendingText>();
+const recentFilesByChat = new Map<string, RecentFiles>();
+/** 文字先到、文件随后（转发带附言的自动流，几乎同时到达） */
+const TEXT_BEFORE_FILE_MS = 10_000;
+/** 文件先到、文字随后（转发后手动补一句描述，给足打字时间） */
+const TEXT_AFTER_FILE_MS = 60_000;
+
+/**
  * 收藏 bot：文件→存档（caption 当备注）、含链接的文字→存链接并给「离线保存全文」
  * 按钮、纯文字→存片段、/code→签发前台一次性解锁码。
  */
@@ -567,7 +582,7 @@ async function handleArchiveUpdate(
   if (text === '/start' || text === '/help') {
     await reply(
       '这是你的收藏箱 bot：\n\n' +
-        '📄 发/转发文件（≤20MB）→ 永久存档，caption 会作为备注\n' +
+        '📄 发/转发文件（≤20MB）→ 永久存档；转发时带的文字（或 1 分钟内补发的文字）自动当备注\n' +
         '🔗 发链接 → 收藏网址，可一键离线保存全文（含配图）；链接旁的文字自动当备注\n' +
         '📝 发文字 → 收藏文字片段\n' +
         '📌 回复任意一条「已收藏」确认消息 → 给那条收藏加/改备注\n\n' +
@@ -585,8 +600,26 @@ async function handleArchiveUpdate(
     }
     try {
       const data = await tgDownloadFile(bot.token, file.fileId);
-      const note = msg.caption?.trim() || null;
+      let note = msg.caption?.trim() || null;
+      const chatKey = `${bot.id}:${chatId}`;
+      // 刚发过一段文字（转发附言先到）→ 挪来当备注，撤销刚建的文字条目
+      const pt = pendingTextByChat.get(chatKey);
+      if (!note && pt && Date.now() - pt.at < TEXT_BEFORE_FILE_MS) {
+        note = pt.text;
+        if (pt.itemId) {
+          deleteArchiveItem(pt.itemId);
+          pt.itemId = null; // 同批转发多个文件共享附言，条目只删一次
+        }
+      }
       const item = createFileItem({ data, name: file.name, mime: file.mime, note, source });
+      // 记录到「最近文件」，之后 60 秒内发的纯文字会自动当这批文件的备注
+      const rf = recentFilesByChat.get(chatKey);
+      if (rf && Date.now() - rf.at < TEXT_AFTER_FILE_MS) {
+        rf.itemIds.push(item.id);
+        rf.at = Date.now();
+      } else {
+        recentFilesByChat.set(chatKey, { itemIds: [item.id], at: Date.now() });
+      }
       touchBotUsed(bot.id);
       const mid = await reply(
         `✅ 已收藏文件：${file.name}（${fmtSize(data.length)}）${note ? `\n备注：${note}` : ''}\n\n回复本条消息可加备注 · 查看：${baseUrl}/archive`,
@@ -625,7 +658,28 @@ async function handleArchiveUpdate(
       touchBotUsed(bot.id);
       return { action: 'archived', itemId: last!.id, itemType: 'url', title: last!.title };
     }
+    // 刚收藏过文件（转发后补一句描述）→ 这段文字当那批文件的备注，不单独建条目
+    const chatKey = `${bot.id}:${chatId}`;
+    const rf = recentFilesByChat.get(chatKey);
+    if (rf && Date.now() - rf.at < TEXT_AFTER_FILE_MS) {
+      const targets = rf.itemIds
+        .map((id) => getArchiveItem(id))
+        .filter((i): i is NonNullable<typeof i> => !!i && !i.note); // 有 caption 备注的不覆盖
+      if (targets.length) {
+        for (const t of targets) updateArchiveItem(t.id, { note: text });
+        recentFilesByChat.delete(chatKey);
+        await reply(
+          targets.length > 1
+            ? `📌 已把这段文字作为备注加到刚收藏的 ${targets.length} 个文件`
+            : `📌 已作为「${targets[0].title}」的备注`,
+        );
+        return { action: 'archived', itemId: targets[0].id, itemType: 'note', title: targets[0].title };
+      }
+    }
+
     const item = createTextItem({ text, source });
+    // 记录待配对文字：10 秒内若有文件到达（转发附言先于文件推送），转为其备注
+    pendingTextByChat.set(chatKey, { itemId: item.id, text, at: Date.now() });
     touchBotUsed(bot.id);
     const mid = await reply(`📝 已收藏文字片段：${item.title}\n\n回复本条消息可加备注 · 查看：${baseUrl}/archive`);
     if (mid) setItemTgRef(item.id, `${chatId}:${mid}`);
