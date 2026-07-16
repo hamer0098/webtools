@@ -1,9 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { generateSlug } from '@/lib/utils/slug';
 import { Lock, LockOpen, Link as LinkIcon, Check } from 'lucide-react';
+
+// SSR 时 useLayoutEffect 会告警(该组件未关 ssr),服务端降级为 useEffect
+const useIsomorphicLayoutEffect =
+  typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 type LoadState =
   | { state: 'loading' }
@@ -21,6 +25,27 @@ export default function NotepadTool({ noteSlug }: { noteSlug?: string }) {
   }>({ kind: 'idle' });
   const [showPwd, setShowPwd] = useState(false);
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // iOS 的「粘贴/选择」编辑菜单只在点到光标或文字附近时才弹出。textarea 高度
+  // 始终等于内容高度,文字下方的空白属于外层 div(点它聚焦并把光标移到末尾),
+  // 这样长按/双击永远落在文字附近,原生编辑菜单可用。
+  const autoResize = useCallback(() => {
+    const ta = taRef.current;
+    // 保活隐藏(display:none)时测不出高度,跳过,避免把高度写坏
+    if (!ta || ta.offsetParent === null) return;
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+  }, []);
+
+  useIsomorphicLayoutEffect(() => {
+    autoResize();
+  }, [content, load.state, autoResize]);
+
+  useEffect(() => {
+    window.addEventListener('resize', autoResize);
+    return () => window.removeEventListener('resize', autoResize);
+  }, [autoResize]);
 
   // 没有 slug：生成一个并跳转
   useEffect(() => {
@@ -159,15 +184,32 @@ export default function NotepadTool({ noteSlug }: { noteSlug?: string }) {
           <SaveIndicator status={saveStatus} />
         </div>
       </header>
-      <textarea
-        value={content}
-        onChange={(e) => {
-          setContent(e.target.value);
-          scheduleSave(e.target.value);
+      <div
+        className="flex-1 cursor-text overflow-y-auto bg-white dark:bg-neutral-950"
+        onMouseDown={(e) => {
+          // 只处理点在空白区(textarea 之外)的情况;preventDefault 避免先失焦
+          // 再聚焦导致键盘闪一下
+          if (e.target !== e.currentTarget) return;
+          e.preventDefault();
+          const ta = taRef.current;
+          if (!ta) return;
+          ta.focus();
+          const end = ta.value.length;
+          ta.setSelectionRange(end, end);
         }}
-        placeholder="开始输入… 内容会自动保存"
-        className="flex-1 resize-none bg-white p-4 font-mono text-base outline-none dark:bg-neutral-950 md:text-sm"
-      />
+      >
+        <textarea
+          ref={taRef}
+          value={content}
+          onChange={(e) => {
+            setContent(e.target.value);
+            scheduleSave(e.target.value);
+          }}
+          placeholder="开始输入… 内容会自动保存"
+          rows={1}
+          className="block w-full resize-none overflow-hidden bg-transparent p-4 font-mono text-base outline-none md:text-sm"
+        />
+      </div>
       {showPwd && (
         <PasswordSettings
           slug={noteSlug}
